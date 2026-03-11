@@ -208,44 +208,74 @@ export function generateHTML(template, config, assets, animations) {
  * Generate ad.js (click handlers)
  */
 export function generateAdJS(config) {
-  const buttonCount = config.buttonCount || 0
   const clickZones = config.clickZones || []
+  const globalJobId = config.jobId || ''
 
-  // Generate button click handler code
-  let buttonHandlers = ''
-  if (buttonCount > 0) {
-    for (let i = 0; i < buttonCount; i++) {
-      // Buttons 1 & 2 use clickTag1, buttons 3 & 4 use clickTag2
-      const clickTag = i < 2 ? 'clickTag1' : 'clickTag2'
-      buttonHandlers += `
-    var btn${i + 1} = document.getElementById('ctaButton${i + 1}');
-    if (btn${i + 1}) btn${i + 1}.onclick = function() { openLink(${clickTag}); };`
-    }
-  }
-
-  // Generate click zone handlers
-  let zoneHandlers = ''
-  clickZones.forEach((zone) => {
+  // Generate clickTag variable declarations
+  const clickTagVars = clickZones.map((zone, i) => {
     const varName = zone.id.replace(/[^a-zA-Z0-9]/g, '_')
-    zoneHandlers += `
-    var ${varName} = document.getElementById('${zone.id}');
-    if (${varName}) ${varName}.onclick = function() { openLink('${zone.url}'); };`
-  })
+    return `    var ${varName} = "${zone.url}";`
+  }).join('\n')
 
-  return `// Click Zone URLs
-${clickZones.map(z => `var ${z.id.replace(/[^a-zA-Z0-9]/g, '_')}_url = "${z.url}";`).join('\n')}
+  // Generate click handlers based on link type
+  const clickHandlers = clickZones.map(zone => {
+    const varName = zone.id.replace(/[^a-zA-Z0-9]/g, '_')
+    const linkType = zone.linkType || 'url'
 
-function openLink(url) {
-    if (typeof appHost !== 'undefined' && appHost) {
-        appHost.requestFullscreenBrowserView(url);
-    } else {
-        window.open(url);
+    let handlerFn = ''
+    if (linkType === 'url') {
+      handlerFn = `openExternalLinkFull(e, ${varName})`
+    } else if (linkType === 'pdf') {
+      handlerFn = `openExternalPDF(e, ${varName})`
+    } else if (linkType === 'mod') {
+      const jobId = zone.jobId || globalJobId
+      handlerFn = `openMod("${jobId}")`
     }
-}
 
-document.addEventListener('DOMContentLoaded', function() {
-${zoneHandlers}
-${buttonHandlers}
+    return `        //${zone.id} - ${linkType.toUpperCase()}
+        $('#${zone.id}')[0].addEventListener("click", function (e) {
+            ${handlerFn};
+        }, false);`
+  }).join('\n\n')
+
+  return `$(document).ready(function () {
+${clickTagVars}
+
+    //external URL
+    function openExternalLinkFull(e, linkUrl) {
+        if (typeof appHost !== 'undefined') {
+            appHost.requestFullscreenBrowserView(linkUrl);
+        } else {
+            window.open(linkUrl);
+        }
+    }
+
+    //external PDF
+    function openExternalPDF(e, pdfUrl) {
+        if (typeof appHost !== 'undefined') {
+            appHost.requestPDFView(pdfUrl);
+        } else {
+            window.open(pdfUrl);
+        }
+    }
+
+    //open Mod
+    function openMod(jobId) {
+        if (typeof appHost !== 'undefined') {
+            appHost.requestModalAdView("mod/index.html");
+        } else {
+            window.open("https://patientpointdemo.com/banner_review/IADS-" + jobId + "/index.html");
+        }
+    }
+
+
+    function assignClickHandlers() {
+
+${clickHandlers}
+    }
+
+    assignClickHandlers();
+
 });`
 }
 

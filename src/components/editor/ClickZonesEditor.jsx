@@ -1,6 +1,12 @@
 import { useProjectStore } from '../../stores/projectStore'
 import { hasFeature } from '../../templates'
 
+const LINK_TYPES = [
+  { value: 'url', label: 'Open URL', description: 'Opens external webpage in fullscreen browser' },
+  { value: 'pdf', label: 'Open PDF', description: 'Opens PDF in native viewer' },
+  { value: 'mod', label: 'Open Mod', description: 'Opens modal ad (secondary HTML)' }
+]
+
 function ClickZonesEditor() {
   const config = useProjectStore((state) => state.config)
   const currentTemplate = useProjectStore((state) => state.currentTemplate)
@@ -10,16 +16,18 @@ function ClickZonesEditor() {
   const zones = config.clickZones || []
 
   const presetZones = [
-    { id: 'clickTag1', label: 'Main Click Area' },
-    { id: 'pi-isi', label: 'Prescribing Info (PI)' },
-    { id: 'mg-isi', label: 'Medication Guide (MG)' },
-    { id: 'fda', label: 'FDA Link' },
+    { id: 'clickTag1', label: 'Main Click Area', defaultLinkType: 'url' },
+    { id: 'pi-isi', label: 'Prescribing Info (PI)', defaultLinkType: 'pdf' },
+    { id: 'mg-isi', label: 'Medication Guide (MG)', defaultLinkType: 'pdf' },
+    { id: 'fda', label: 'FDA Link', defaultLinkType: 'url' },
   ]
 
   const addZone = (preset = null) => {
     const newZone = preset ? {
       id: preset.id,
       url: 'https://education.patientpoint.com/failsafe-page/',
+      linkType: preset.defaultLinkType || 'url',
+      jobId: '',
       top: preset.id === 'clickTag1' ? 0 : 100,
       left: preset.id === 'clickTag1' ? 0 : 50,
       width: preset.id === 'clickTag1' ? config.dimensions.width : 200,
@@ -28,6 +36,8 @@ function ClickZonesEditor() {
     } : {
       id: `zone-${Date.now()}`,
       url: 'https://',
+      linkType: 'url',
+      jobId: '',
       top: 100,
       left: 50,
       width: 200,
@@ -58,8 +68,25 @@ function ClickZonesEditor() {
       </div>
 
       <p className="text-sm text-gray-600">
-        Define clickable areas and their destination URLs. Zones marked "In ISI" will scroll with the ISI content.
+        Define clickable areas, their link types, and destination URLs.
       </p>
+
+      {/* Global Job ID for mod fallback */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <label className="block text-sm font-medium text-blue-800 mb-1">
+          Job ID (for Mod fallback)
+        </label>
+        <input
+          type="text"
+          value={config.jobId || ''}
+          onChange={(e) => updateConfig('jobId', e.target.value)}
+          className="w-full px-3 py-2 border border-blue-300 rounded text-sm"
+          placeholder="e.g., 1234"
+        />
+        <p className="text-xs text-blue-600 mt-1">
+          Used in fallback URL: patientpointdemo.com/banner_review/IADS-[jobId]/...
+        </p>
+      </div>
 
       {/* Add Zone Buttons */}
       <div className="space-y-2">
@@ -85,8 +112,8 @@ function ClickZonesEditor() {
       {/* Zone List */}
       <div className="space-y-3">
         {zones.map((zone, index) => (
-          <div key={zone.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-            <div className="flex items-center justify-between mb-2">
+          <div key={zone.id + index} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+            <div className="flex items-center justify-between mb-3">
               <input
                 type="text"
                 value={zone.id}
@@ -101,17 +128,57 @@ function ClickZonesEditor() {
               </button>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
+              {/* Link Type Selector */}
               <div>
-                <label className="block text-xs text-gray-600 mb-1">URL</label>
+                <label className="block text-xs text-gray-600 mb-1">Link Type</label>
+                <div className="flex gap-1">
+                  {LINK_TYPES.map(lt => (
+                    <button
+                      key={lt.value}
+                      onClick={() => updateZone(index, 'linkType', lt.value)}
+                      className={`flex-1 px-2 py-1.5 text-xs rounded border transition-colors ${
+                        zone.linkType === lt.value
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'
+                      }`}
+                      title={lt.description}
+                    >
+                      {lt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* URL Field */}
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">
+                  {zone.linkType === 'mod' ? 'Modal Path' : zone.linkType === 'pdf' ? 'PDF URL' : 'URL'}
+                </label>
                 <input
-                  type="url"
+                  type="text"
                   value={zone.url}
                   onChange={(e) => updateZone(index, 'url', e.target.value)}
                   className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
-                  placeholder="https://..."
+                  placeholder={zone.linkType === 'mod' ? 'mod/index.html' : 'https://...'}
                 />
               </div>
+
+              {/* Job ID Override (for mod type) */}
+              {zone.linkType === 'mod' && (
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">
+                    Job ID Override <span className="text-gray-400">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={zone.jobId || ''}
+                    onChange={(e) => updateZone(index, 'jobId', e.target.value)}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                    placeholder={`Uses global: ${config.jobId || '(not set)'}`}
+                  />
+                </div>
+              )}
 
               {hasISI && (
                 <label className="flex items-center gap-2 text-sm">

@@ -63,9 +63,13 @@ export const useProjectStore = create(
           { text: 'Button 4', bgColor: '#333333', textColor: '#ffffff', borderColor: '#333333', borderRadius: 4, width: 200, height: 50, top: 160, left: 300 }
         ],
         // Click Zones (for MR and CP templates)
+        // linkType: 'url' | 'pdf' | 'mod'
+        // jobId: string (for mod fallback URL)
         clickZones: [
-          { id: 'clickTag1', url: 'https://education.patientpoint.com/failsafe-page/', top: 0, left: 0, width: 1080, height: 1193, inISI: false }
-        ]
+          { id: 'clickTag1', url: 'https://education.patientpoint.com/failsafe-page/', linkType: 'url', jobId: '', top: 0, left: 0, width: 1080, height: 1193, inISI: false }
+        ],
+        // Global job ID for mod fallback (used if zone doesn't specify one)
+        jobId: ''
       },
 
       // ISI content (for text-to-image generation)
@@ -103,13 +107,16 @@ export const useProjectStore = create(
               {
                 id: 'clickTag1',
                 url: 'https://education.patientpoint.com/failsafe-page/',
+                linkType: 'url',
+                jobId: '',
                 top: 0,
                 left: 0,
                 width: template.dimensions.width,
                 height: hasISI ? isiDefaults.isiTop : template.dimensions.height,
                 inISI: false
               }
-            ]
+            ],
+            jobId: ''
           }
         })
       },
