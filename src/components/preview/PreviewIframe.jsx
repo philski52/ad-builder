@@ -3,12 +3,18 @@ import { useProjectStore } from '../../stores/projectStore'
 import { hasFeature } from '../../templates'
 import { generateHTML, generateCSS, generateScrollerCSS, generateMainJS, generateAdJS, generateClicksCSS } from '../../utils/templateGenerator'
 
-function DeviceSimulator({ dimensions, children }) {
+function DeviceSimulator({ dimensions, scale, children }) {
+  const frameWidth = dimensions.width * scale + 32
+  const frameHeight = dimensions.height * scale + 32
+
   return (
-    <div className="relative">
-      <div className="bg-gray-800 rounded-3xl p-4 shadow-xl">
-        <div className="bg-black rounded-2xl p-2">
-          <div className="bg-gray-900 rounded-xl overflow-hidden">
+    <div className="relative inline-block">
+      <div
+        className="bg-gray-800 rounded-3xl p-4 shadow-xl"
+        style={{ width: frameWidth, height: frameHeight }}
+      >
+        <div className="bg-black rounded-2xl p-2 h-full">
+          <div className="bg-gray-900 rounded-xl overflow-hidden h-full">
             {children}
           </div>
         </div>
@@ -104,11 +110,11 @@ function PreviewIframe() {
     html = html.replace(/<link rel="stylesheet" href="css\/[^"]+\.css">/g, '')
 
     // Inline ad.js
-    html = html.replace('<script src="script/ad.js"><\\/script>', `<script>${adJs}</script>`)
+    html = html.replace('<script src="script/ad.js"></script>', `<script>${adJs}</script>`)
 
     // Inline main.js for ISI templates
     if (hasISI) {
-      html = html.replace('<script src="script/main.js"><\\/script>', `<script>${mainJs}</script>`)
+      html = html.replace('<script src="script/main.js"></script>', `<script>${mainJs}</script>`)
     }
 
     // Remove external script refs
@@ -492,7 +498,7 @@ function PreviewIframe() {
         </button>
       </div>
 
-      <DeviceSimulator dimensions={config.dimensions}>
+      <DeviceSimulator dimensions={config.dimensions} scale={scale}>
         <div
           ref={containerRef}
           style={{

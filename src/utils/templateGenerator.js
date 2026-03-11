@@ -188,8 +188,10 @@ export function generateHTML(template, config, assets, animations) {
         ${hasISI ? `
         <div id="outerMostDiv">
             <div id="innerMostDiv">
-                <img id="ISI_guts" src="assets/isi.png" width="${config.isiWidth || config.dimensions.width}px">
-                ${isiZonesHTML}
+                <div id="isi-content-wrapper">
+                    <img id="ISI_guts" src="assets/isi.png" width="${config.isiWidth || config.dimensions.width}px">
+                    ${isiZonesHTML}
+                </div>
             </div>
             <div id="isi-controls"></div>
         </div>` : ''}
@@ -223,34 +225,37 @@ export function generateAdJS(config) {
     const linkType = zone.linkType || 'url'
 
     let handlerFn = ''
+    let comment = ''
     if (linkType === 'url') {
-      handlerFn = `openExternalLinkFull(e, ${varName})`
+      comment = 'LINK'
+      handlerFn = `openExternalLinkFull(e, ${varName});`
     } else if (linkType === 'pdf') {
-      handlerFn = `openExternalPDF(e, ${varName})`
+      comment = 'PDF'
+      handlerFn = `openExternalPDF(e, ${varName});`
     } else if (linkType === 'mod') {
+      comment = 'MOD-INT'
       const jobId = zone.jobId || globalJobId
-      handlerFn = `openMod("${jobId}")`
+      handlerFn = `openMod("${jobId}");`
     }
 
-    return `        //${zone.id} - ${linkType.toUpperCase()}
+    return `        //${comment}
         $('#${zone.id}')[0].addEventListener("click", function (e) {
-            ${handlerFn};
+            ${handlerFn}
         }, false);`
-  }).join('\n\n')
+  }).join('\n')
 
   return `$(document).ready(function () {
-${clickTagVars}
 
-    //external URL
-    function openExternalLinkFull(e, linkUrl) {
+    //External Link
+    function openExternalLinkFull(e, clickTag) {
         if (typeof appHost !== 'undefined') {
-            appHost.requestFullscreenBrowserView(linkUrl);
+            appHost.openExternalLinkFull(clickTag);
         } else {
-            window.open(linkUrl);
+            window.open(clickTag);
         }
     }
 
-    //external PDF
+    //External PDF
     function openExternalPDF(e, pdfUrl) {
         if (typeof appHost !== 'undefined') {
             appHost.requestPDFView(pdfUrl);
@@ -259,7 +264,7 @@ ${clickTagVars}
         }
     }
 
-    //open Mod
+    //MODAL-INT Open
     function openMod(jobId) {
         if (typeof appHost !== 'undefined') {
             appHost.requestModalAdView("mod/index.html");
@@ -268,10 +273,11 @@ ${clickTagVars}
         }
     }
 
+${clickTagVars}
 
     function assignClickHandlers() {
-
 ${clickHandlers}
+
     }
 
     assignClickHandlers();
@@ -327,6 +333,10 @@ export function generateScrollerCSS(config) {
     top: 0;
     left: 0;
     width: ${isiWidth - scrollerTrackWidth - 8}px;
+}
+
+#isi-content-wrapper {
+    position: relative;
 }
 
 .scroller {
