@@ -481,43 +481,57 @@ function ConfigPanel() {
                           <span className="text-xs text-gray-500">Text</span>
                         </div>
                       </div>
-                      <div className="grid grid-cols-4 gap-2">
-                        <input
-                          type="number"
-                          value={btn.left || 50}
-                          onChange={(e) =>
-                            updateButton('left', parseInt(e.target.value))
-                          }
-                          className="px-2 py-1 border rounded text-xs"
-                          placeholder="Left"
-                        />
-                        <input
-                          type="number"
-                          value={btn.top || 100}
-                          onChange={(e) =>
-                            updateButton('top', parseInt(e.target.value))
-                          }
-                          className="px-2 py-1 border rounded text-xs"
-                          placeholder="Top"
-                        />
-                        <input
-                          type="number"
-                          value={btn.width || 200}
-                          onChange={(e) =>
-                            updateButton('width', parseInt(e.target.value))
-                          }
-                          className="px-2 py-1 border rounded text-xs"
-                          placeholder="W"
-                        />
-                        <input
-                          type="number"
-                          value={btn.height || 50}
-                          onChange={(e) =>
-                            updateButton('height', parseInt(e.target.value))
-                          }
-                          className="px-2 py-1 border rounded text-xs"
-                          placeholder="H"
-                        />
+                      <div className="position-container">
+                        <div className="grid grid-cols-4 gap-2">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Left</label>
+                            <input
+                              type="number"
+                              value={btn.left || 50}
+                              onChange={(e) =>
+                                updateButton('left', parseInt(e.target.value))
+                              }
+                              className="px-2 py-1 border rounded text-xs w-full"
+                              placeholder="Left"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Top</label>
+                            <input
+                              type="number"
+                              value={btn.top || 100}
+                              onChange={(e) =>
+                                updateButton('top', parseInt(e.target.value))
+                              }
+                              className="px-2 py-1 border rounded text-xs w-full"
+                              placeholder="Top"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Width</label>
+                            <input
+                              type="number"
+                              value={btn.width || 200}
+                              onChange={(e) =>
+                                updateButton('width', parseInt(e.target.value))
+                              }
+                              className="px-2 py-1 border rounded text-xs w-full"
+                              placeholder="Width"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Height</label>
+                            <input
+                              type="number"
+                              value={btn.height || 50}
+                              onChange={(e) =>
+                                updateButton('height', parseInt(e.target.value))
+                              }
+                              className="px-2 py-1 border rounded text-xs w-full"
+                              placeholder="Height"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>

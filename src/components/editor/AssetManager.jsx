@@ -1,8 +1,19 @@
+import { useState } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
 import { hasFeature } from '../../templates'
 import AssetUploader from './AssetUploader'
 
 function AssetManager() {
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleVideoFile = (file) => {
+    if (!file || file.type !== 'video/mp4') return
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setAsset('video', { name: file.name, dataUrl: e.target.result })
+    }
+    reader.readAsDataURL(file)
+  }
   const currentTemplate = useProjectStore((state) => state.currentTemplate)
   const assets = useProjectStore((state) => state.assets)
   const setAsset = useProjectStore((state) => state.setAsset)
@@ -65,7 +76,17 @@ function AssetManager() {
             </div>
           ) : (
             <label className="block">
-              <div className="drop-zone cursor-pointer hover:border-primary-400">
+              <div
+                className={`drop-zone cursor-pointer hover:border-primary-400 ${isDragging ? 'border-primary-400 bg-primary-50' : ''}`}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                onDragEnter={(e) => { e.preventDefault(); setIsDragging(true) }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  setIsDragging(false)
+                  handleVideoFile(e.dataTransfer.files?.[0])
+                }}
+              >
                 <svg className="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
@@ -76,19 +97,7 @@ function AssetManager() {
                 type="file"
                 accept="video/mp4"
                 className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) {
-                    const reader = new FileReader()
-                    reader.onload = (e) => {
-                      setAsset('video', {
-                        name: file.name,
-                        dataUrl: e.target.result
-                      })
-                    }
-                    reader.readAsDataURL(file)
-                  }
-                }}
+                onChange={(e) => handleVideoFile(e.target.files?.[0])}
               />
             </label>
           )}

@@ -215,7 +215,7 @@ export function generateHTML(template, config, assets, animations) {
         </div>`
             : ''
         }
-        ${hasVideo ? `<video id="videoId" autoplay><source src="assets/video.mp4" type="video/mp4" /></video>` : ''}
+        ${hasVideo ? `<video id="videoId" autoplay width="900" height="${config.videoHeight || 60}"><source src="assets/video.mp4" type="video/mp4" /></video>` : ''}
         ${buttonsHTML}
     </div>
     <script src="script/ad.js"><\/script>
