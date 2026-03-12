@@ -50,12 +50,20 @@ export async function exportAdZip(template, config, assets, projectName, animati
     cssFolder.file('clicks.css', code.clicksCss)
   }
 
+  if (code.expandableCss) {
+    cssFolder.file('expandable.css', code.expandableCss)
+  }
+
   // Add script folder
   const scriptFolder = zip.folder('script')
   scriptFolder.file('ad.js', code.js)
 
   if (code.mainJs) {
     scriptFolder.file('main.js', code.mainJs)
+  }
+
+  if (code.expandCollapseJs) {
+    scriptFolder.file('expandCollapse.js', code.expandCollapseJs)
   }
 
   // Add assets folder
@@ -87,6 +95,18 @@ export async function exportAdZip(template, config, assets, projectName, animati
   if (assets.video?.dataUrl) {
     const blob = dataUrlToBlob(assets.video.dataUrl)
     assetsFolder.file('video.mp4', blob)
+  }
+
+  // Add expand button image
+  if (assets.expandButtonImage?.dataUrl) {
+    const blob = dataUrlToBlob(assets.expandButtonImage.dataUrl)
+    assetsFolder.file('expand-button.png', blob)
+  }
+
+  // Add collapse button image
+  if (assets.collapseButtonImage?.dataUrl) {
+    const blob = dataUrlToBlob(assets.collapseButtonImage.dataUrl)
+    assetsFolder.file('collapse-button.png', blob)
   }
 
   // Generate zip blob

@@ -8,6 +8,7 @@ import { hasFeature } from '../templates'
  */
 export function generateTemplateCode(template, config, assets, animations = []) {
   const hasISI = hasFeature(template, 'isi')
+  const hasExpandable = hasFeature(template, 'expandable') && config.expandableEnabled
   const hasVideo = hasFeature(template, 'video')
   const hasButtons = hasVideo && config.buttonCount > 0
   const hasClickZones = (config.clickZones || []).length > 0
@@ -21,6 +22,11 @@ export function generateTemplateCode(template, config, assets, animations = []) 
   if (hasISI) {
     result.scrollerCss = generateScrollerCSS(config)
     result.mainJs = generateMainJS(config)
+  }
+
+  if (hasExpandable) {
+    result.expandableCss = generateExpandableCSS(config)
+    result.expandCollapseJs = generateExpandCollapseJS(config)
   }
 
   if (hasButtons) {
@@ -82,6 +88,18 @@ function generateAnimationJS(animations) {
       props.scale = anim.effects.scale.to
       initProps.scale = anim.effects.scale.from
     }
+    if (anim.effects.width !== undefined) {
+      props.width = anim.effects.width.to
+      initProps.width = anim.effects.width.from
+    }
+    if (anim.effects.height !== undefined) {
+      props.height = anim.effects.height.to
+      initProps.height = anim.effects.height.from
+    }
+    if (anim.effects.zIndex !== undefined) {
+      props.zIndex = anim.effects.zIndex.to
+      initProps.zIndex = anim.effects.zIndex.from
+    }
     if (anim.easing && anim.easing !== 'none') {
       props.ease = anim.easing
     }
@@ -124,6 +142,7 @@ window.addEventListener('message', function(e) {
  */
 export function generateHTML(template, config, assets, animations) {
   const hasISI = hasFeature(template, 'isi')
+  const hasExpandable = hasFeature(template, 'expandable') && config.expandableEnabled
   const hasAnimation = hasFeature(template, 'animation')
   const hasVideo = hasFeature(template, 'video')
   const buttonCount = config.buttonCount || 0
@@ -161,6 +180,23 @@ export function generateHTML(template, config, assets, animations) {
 
   const hasClickZones = clickZones.length > 0
 
+  // Generate expandable ISI HTML
+  let expandableHTML = ''
+  if (hasExpandable) {
+    const expandContent = config.expandButtonMode === 'image'
+      ? `<img src="assets/expand-button.png" width="${config.expandButtonWidth}" height="${config.expandButtonHeight}">`
+      : `<h1>${config.expandButtonText || 'CLICK HERE TO EXPAND SAFETY INFORMATION'}</h1>`
+    const collapseContent = config.collapseButtonMode === 'image'
+      ? `<img src="assets/collapse-button.png" width="${config.collapseButtonWidth}" height="${config.collapseButtonHeight}">`
+      : `<h1>${config.collapseButtonText || 'CLICK HERE TO COLLAPSE SAFETY INFORMATION'}</h1>`
+
+    expandableHTML = `
+        <div id="expandable">
+            <div id="expand">${expandContent}</div>
+            <div id="collapse">${collapseContent}</div>
+        </div>`
+  }
+
   // Generate animation JS
   const animationScript = generateAnimationJS(anims)
 
@@ -172,24 +208,26 @@ export function generateHTML(template, config, assets, animations) {
     <meta name="ad.size" content="width=${config.dimensions.width},height=${config.dimensions.height}">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <title>Ad</title>
-    <script>var appHost = null; try { appHost = window.appHost = window.top.AppHost ? new window.top.AppHost(this) : null; } catch(e) { window.appHost = null; }<\/script>
+    <script>  var appHost = window.appHost = new window.top.AppHost(this);<\/script>
     <script src="https://code.jquery.com/jquery-2.1.4.min.js"><\/script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/2.0.1/TweenMax.min.js"><\/script>
     <link rel="stylesheet" href="css/main.css">
     ${hasISI ? `<link rel="stylesheet" href="css/scroller.css">` : ''}
     ${hasClickZones ? `<link rel="stylesheet" href="css/clicks.css">` : ''}
     ${hasVideo && buttonCount > 0 ? `<link rel="stylesheet" href="css/buttons.css">` : ''}
+    ${hasExpandable ? `<link rel="stylesheet" href="css/expandable.css">` : ''}
 </head>
 <body>
     <div id="container">
         ${!hasVideo ? `<img class="background" src="assets/background.png" width="${config.dimensions.width}px">` : ''}
         ${framesHTML}
         ${containerZonesHTML}
+        ${expandableHTML}
         ${hasISI ? `
         <div id="outerMostDiv">
             <div id="innerMostDiv">
                 <div id="isi-content-wrapper">
-                    <img id="ISI_guts" src="assets/isi.png" width="${config.isiWidth || config.dimensions.width}px">
+                    <img id="ISI_guts" src="assets/isi.png" width="${config.isiImageWidth || config.isiWidth || config.dimensions.width}px">
                     ${isiZonesHTML}
                 </div>
             </div>
@@ -200,6 +238,8 @@ export function generateHTML(template, config, assets, animations) {
     </div>
     <script src="script/ad.js"><\/script>
     ${hasISI ? `<script src="script/main.js"><\/script>` : ''}
+    ${hasExpandable ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"><\/script>
+    <script src="script/expandCollapse.js"><\/script>` : ''}
     ${animationScript ? `<script>${animationScript}<\/script>` : ''}
 
 </body>
@@ -248,7 +288,7 @@ export function generateAdJS(config) {
 
     //External Link
     function openExternalLinkFull(e, clickTag) {
-        if (typeof appHost !== 'undefined') {
+        if (typeof appHost !== 'undefined' && appHost) {
             appHost.openExternalLinkFull(clickTag);
         } else {
             window.open(clickTag);
@@ -257,7 +297,7 @@ export function generateAdJS(config) {
 
     //External PDF
     function openExternalPDF(e, pdfUrl) {
-        if (typeof appHost !== 'undefined') {
+        if (typeof appHost !== 'undefined' && appHost) {
             appHost.requestPDFView(pdfUrl);
         } else {
             window.open(pdfUrl);
@@ -266,7 +306,7 @@ export function generateAdJS(config) {
 
     //MODAL-INT Open
     function openMod(jobId) {
-        if (typeof appHost !== 'undefined') {
+        if (typeof appHost !== 'undefined' && appHost) {
             appHost.requestModalAdView("mod/index.html");
         } else {
             window.open("https://patientpointdemo.com/banner_review/IADS-" + jobId + "/index.html");
@@ -303,8 +343,10 @@ body { overflow: hidden; }
  * Generate scroller.css for ISI templates
  */
 export function generateScrollerCSS(config) {
-  const isiHeight = config.isiHeight || 540
-  const isiTop = config.isiTop || (config.dimensions.height - isiHeight)
+  // If expandable is enabled, use collapsed state values for initial ISI position
+  const isExpandable = config.expandableEnabled
+  const isiHeight = isExpandable ? (config.expandableCollapsedHeight || 450) : (config.isiHeight || 540)
+  const isiTop = isExpandable ? (config.expandableCollapsedTop || 1100) : (config.isiTop || (config.dimensions.height - isiHeight))
   const isiWidth = config.isiWidth || config.dimensions.width
   const isiLeft = config.isiLeft || 0
   const isiBackgroundColor = config.isiBackgroundColor || '#ffffff'
@@ -314,6 +356,10 @@ export function generateScrollerCSS(config) {
   const scrollerBorderRadius = config.scrollerBorderRadius || 50
   const scrollerTrackColor = config.scrollerTrackColor || '#b8bebc'
   const scrollerTrackWidth = config.scrollerTrackWidth || 12
+  const scrollerTrackRight = config.scrollerTrackRight || 0
+  const scrollerTrackBorderRadius = config.scrollerTrackBorderRadius !== undefined ? config.scrollerTrackBorderRadius : 50
+  const isiImageLeft = config.isiImageLeft || 0
+  const isiImageTop = config.isiImageTop || 0
 
   return `/* Scroller CSS for ISI */
 #outerMostDiv {
@@ -337,6 +383,12 @@ export function generateScrollerCSS(config) {
 
 #isi-content-wrapper {
     position: relative;
+}
+
+#ISI_guts {
+    position: relative;
+    left: ${isiImageLeft}px;
+    top: ${isiImageTop}px;
 }
 
 .scroller {
@@ -370,9 +422,9 @@ export function generateScrollerCSS(config) {
 
 .isiLineNoArrows {
     background: ${scrollerTrackColor};
-    border-radius: ${scrollerBorderRadius}px;
+    border-radius: ${scrollerTrackBorderRadius}px;
     top: 0px;
-    right: 0px;
+    right: ${scrollerTrackRight}px;
     height: 100%;
     width: ${scrollerTrackWidth}px;
     cursor: pointer;
@@ -606,5 +658,163 @@ function clearIntervalFunct() {
 
 $(document).ready(function() {
     init2();
+});`
+}
+
+/**
+ * Generate expandable.css for expandable ISI templates
+ */
+export function generateExpandableCSS(config) {
+  const expandButtonMode = config.expandButtonMode || 'text'
+  const collapseButtonMode = config.collapseButtonMode || 'text'
+
+  // Expand button styles
+  const expandTop = config.expandButtonTop || 1040
+  const expandLeft = config.expandButtonLeft || 0
+  const expandWidth = config.expandButtonWidth || 1080
+  const expandHeight = config.expandButtonHeight || 41
+  const expandBgColor = config.expandButtonBgColor || '#532f87'
+  const expandTextColor = config.expandButtonTextColor || '#ffffff'
+  const expandFontSize = config.expandButtonFontSize || 16
+  const expandBorderRadius = config.expandButtonBorderRadius || 50
+
+  // Collapse button styles
+  const collapseTop = config.collapseButtonTop || 0
+  const collapseLeft = config.collapseButtonLeft || 0
+  const collapseWidth = config.collapseButtonWidth || 1080
+  const collapseHeight = config.collapseButtonHeight || 41
+  const collapseBgColor = config.collapseButtonBgColor || '#532f87'
+  const collapseTextColor = config.collapseButtonTextColor || '#ffffff'
+  const collapseFontSize = config.collapseButtonFontSize || 16
+  const collapseBorderRadius = config.collapseButtonBorderRadius || 50
+
+  // Different styles for text vs image mode
+  const expandBgStyle = expandButtonMode === 'text' ? `background-color: ${expandBgColor};` : 'background: transparent;'
+  const collapseBgStyle = collapseButtonMode === 'text' ? `background-color: ${collapseBgColor};` : 'background: transparent;'
+
+  return `/* Expandable ISI CSS */
+#expandable {
+    position: absolute;
+    z-index: 998;
+}
+
+#expand {
+    position: absolute;
+    top: ${expandTop}px;
+    left: ${expandLeft}px;
+    width: ${expandWidth}px;
+    height: ${expandHeight}px;
+    ${expandBgStyle}
+    border-radius: ${expandBorderRadius}px;
+    text-align: center;
+    opacity: 1;
+    z-index: 999;
+    justify-content: center;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+#expand h1 {
+    color: ${expandTextColor};
+    font-size: ${expandFontSize}px;
+    font-family: Arial, sans-serif;
+    font-weight: normal;
+    margin: 0;
+    width: 100%;
+}
+
+#expand img {
+    position: static;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+#collapse {
+    position: absolute;
+    top: ${collapseTop}px;
+    left: ${collapseLeft}px;
+    width: ${collapseWidth}px;
+    height: ${collapseHeight}px;
+    ${collapseBgStyle}
+    border-radius: ${collapseBorderRadius}px;
+    text-align: center;
+    opacity: 0;
+    z-index: 999;
+    justify-content: center;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+#collapse h1 {
+    color: ${collapseTextColor};
+    font-size: ${collapseFontSize}px;
+    font-family: Arial, sans-serif;
+    font-weight: normal;
+    margin: 0;
+    width: 100%;
+}
+
+#collapse img {
+    position: static;
+    max-width: 100%;
+    max-height: 100%;
+}`
+}
+
+/**
+ * Generate expandCollapse.js for expandable ISI templates
+ */
+export function generateExpandCollapseJS(config) {
+  // Collapsed state (initial)
+  const collapsedHeight = config.expandableCollapsedHeight || 450
+  const collapsedTop = config.expandableCollapsedTop || 1100
+
+  // Expanded state
+  const expandedHeight = config.expandableExpandedHeight || 1742
+  const expandedTop = config.expandableExpandedTop || 42
+  const controlsHeightPercent = config.expandableControlsHeightPercent || 84
+
+  // Animation duration
+  const duration = config.expandableDuration || 1
+
+  return `var expandTL = gsap.timeline({
+    reversed: true
+});
+
+// Animate ISI container from collapsed to expanded state
+expandTL.to(document.getElementById('outerMostDiv'), {
+    height: '${expandedHeight}',
+    top: '${expandedTop}',
+    duration: ${duration}
+}, 0);
+
+// Animate collapse button to visible
+expandTL.to(document.getElementById("collapse"), {
+    top: '0',
+    opacity: 1,
+    duration: ${duration}
+}, 0);
+
+// Animate expand button to hidden
+expandTL.to(document.getElementById("expand"), {
+    opacity: 0,
+    duration: ${duration}
+}, 0);
+
+// Animate ISI controls height
+expandTL.to(document.getElementById("isi-controls"), {
+    height: '${controlsHeightPercent}%',
+    duration: ${duration}
+}, 0);
+
+// Click handlers
+$("#expand")[0].addEventListener('click', function () {
+    expandTL.play();
+});
+
+$("#collapse")[0].addEventListener('click', function () {
+    expandTL.reverse();
 });`
 }

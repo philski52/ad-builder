@@ -133,6 +133,47 @@ function ConfigPanel() {
         </div>
       )}
 
+      {/* ISI Image (ISI_guts) Settings */}
+      {hasISI && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-gray-700 border-b pb-2">ISI Image (ISI_guts)</h3>
+          <p className="text-xs text-gray-500">Controls the position and width of the ISI content image inside the container.</p>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Width</label>
+              <input
+                type="number"
+                value={config.isiImageWidth || config.isiWidth || config.dimensions.width}
+                onChange={(e) => updateConfig('isiImageWidth', parseInt(e.target.value) || config.dimensions.width)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Left</label>
+              <input
+                type="number"
+                value={config.isiImageLeft || 0}
+                onChange={(e) => updateConfig('isiImageLeft', parseInt(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Top</label>
+              <input
+                type="number"
+                value={config.isiImageTop || 0}
+                onChange={(e) => updateConfig('isiImageTop', parseInt(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400">Position and size of the scrollable ISI image (in pixels)</p>
+        </div>
+      )}
+
       {/* ISI Scroller Settings */}
       {hasISI && (
         <div className="space-y-4">
@@ -166,41 +207,21 @@ function ConfigPanel() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Scroller Color</label>
-              <div className="flex gap-2">
-                <input
-                  type="color"
-                  value={config.scrollerColor || '#798280'}
-                  onChange={(e) => updateConfig('scrollerColor', e.target.value)}
-                  className="w-10 h-9 rounded border border-gray-300 cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={config.scrollerColor || '#798280'}
-                  onChange={(e) => updateConfig('scrollerColor', e.target.value)}
-                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Track Color</label>
-              <div className="flex gap-2">
-                <input
-                  type="color"
-                  value={config.scrollerTrackColor || '#b8bebc'}
-                  onChange={(e) => updateConfig('scrollerTrackColor', e.target.value)}
-                  className="w-10 h-9 rounded border border-gray-300 cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={config.scrollerTrackColor || '#b8bebc'}
-                  onChange={(e) => updateConfig('scrollerTrackColor', e.target.value)}
-                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Scroller Color</label>
+            <div className="flex gap-2">
+              <input
+                type="color"
+                value={config.scrollerColor || '#798280'}
+                onChange={(e) => updateConfig('scrollerColor', e.target.value)}
+                className="w-10 h-9 rounded border border-gray-300 cursor-pointer"
+              />
+              <input
+                type="text"
+                value={config.scrollerColor || '#798280'}
+                onChange={(e) => updateConfig('scrollerColor', e.target.value)}
+                className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
+              />
             </div>
           </div>
 
@@ -239,6 +260,67 @@ function ConfigPanel() {
                 min="0"
                 max="50"
               />
+            </div>
+          </div>
+
+          {/* Scroller Track (isiLineNoArrows) Settings */}
+          <div className="border-t pt-4 mt-4">
+            <h4 className="text-sm font-medium text-gray-600 mb-3">Scroller Track</h4>
+            <p className="text-xs text-gray-500 mb-3">The background track that the scroller moves along.</p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Track Width</label>
+                <input
+                  type="number"
+                  value={config.scrollerTrackWidth || 12}
+                  onChange={(e) => updateConfig('scrollerTrackWidth', parseInt(e.target.value) || 12)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  min="6"
+                  max="30"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Track Right Position</label>
+                <input
+                  type="number"
+                  value={config.scrollerTrackRight || 0}
+                  onChange={(e) => updateConfig('scrollerTrackRight', parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1">pixels from right edge</p>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Track Border Radius</label>
+                <input
+                  type="number"
+                  value={config.scrollerTrackBorderRadius || 50}
+                  onChange={(e) => updateConfig('scrollerTrackBorderRadius', parseInt(e.target.value) || 50)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  min="0"
+                  max="50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Track Color</label>
+                <div className="flex gap-2">
+                  <input
+                    type="color"
+                    value={config.scrollerTrackColor || '#b8bebc'}
+                    onChange={(e) => updateConfig('scrollerTrackColor', e.target.value)}
+                    className="w-10 h-9 rounded border border-gray-300 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={config.scrollerTrackColor || '#b8bebc'}
+                    onChange={(e) => updateConfig('scrollerTrackColor', e.target.value)}
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>

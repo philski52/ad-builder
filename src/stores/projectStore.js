@@ -20,7 +20,9 @@ export const useProjectStore = create(
         background: null,
         frames: [],
         isiImage: null,
-        video: null
+        video: null,
+        expandButtonImage: null,
+        collapseButtonImage: null
       },
 
       // Configuration values
@@ -36,21 +38,59 @@ export const useProjectStore = create(
         isiWidth: 1080,
         isiLeft: 0,
         isiBackgroundColor: '#ffffff',
-        // Scroller styling
+        // ISI Image (ISI_guts) settings
+        isiImageWidth: 1080,
+        isiImageLeft: 0,
+        isiImageTop: 0,
+        // Scroller styling (the draggable thumb)
         scrollerColor: '#798280',
         scrollerWidth: 12,
         scrollerHeight: 35,
         scrollerBorderRadius: 50,
+        // Scroller track (isiLineNoArrows) settings
         scrollerTrackColor: '#b8bebc',
         scrollerTrackWidth: 12,
+        scrollerTrackRight: 0,
+        scrollerTrackBorderRadius: 50,
         // Scroll behavior
         autoScrollSpeed: 80,
         scrollStep: 5,
         // Animation settings
         frameDuration: 0.5,
         frameDelay: 1,
-        expandedHeight: 1742,
-        collapseDuration: 1,
+        // Expandable ISI settings
+        expandableEnabled: false,
+        // Collapsed state (initial)
+        expandableCollapsedHeight: 450,
+        expandableCollapsedTop: 1100,
+        // Expanded state
+        expandableExpandedHeight: 1742,
+        expandableExpandedTop: 42,
+        expandableControlsHeightPercent: 84,
+        // Animation
+        expandableDuration: 1,
+        // Expand button
+        expandButtonMode: 'text', // 'text' or 'image'
+        expandButtonText: 'CLICK HERE TO EXPAND SAFETY INFORMATION',
+        expandButtonTop: 1040,
+        expandButtonLeft: 0,
+        expandButtonWidth: 1080,
+        expandButtonHeight: 41,
+        expandButtonBgColor: '#532f87',
+        expandButtonTextColor: '#ffffff',
+        expandButtonFontSize: 16,
+        expandButtonBorderRadius: 50,
+        // Collapse button
+        collapseButtonMode: 'text', // 'text' or 'image'
+        collapseButtonText: 'CLICK HERE TO COLLAPSE SAFETY INFORMATION',
+        collapseButtonTop: 0,
+        collapseButtonLeft: 0,
+        collapseButtonWidth: 1080,
+        collapseButtonHeight: 41,
+        collapseButtonBgColor: '#532f87',
+        collapseButtonTextColor: '#ffffff',
+        collapseButtonFontSize: 16,
+        collapseButtonBorderRadius: 50,
         // Video settings
         videoHeight: 562,
         showVideoControls: true,
