@@ -14,7 +14,7 @@ export function generateTemplateCode(
 ) {
   const hasISI = hasFeature(template, 'isi');
   const hasVideo = hasFeature(template, 'video');
-  const hasButtons = hasVideo && config.buttonCount > 0;
+  const hasButtons = hasVideo && hasFeature(template, 'buttons') && config.buttonCount > 0;
   const hasClickZones = (config.clickZones || []).length > 0;
 
   const result = {
@@ -136,6 +136,7 @@ export function generateHTML(template, config, assets, animations) {
   const hasISI = hasFeature(template, 'isi');
   const hasAnimation = hasFeature(template, 'animation');
   const hasVideo = hasFeature(template, 'video');
+  const hasButtons = hasFeature(template, 'buttons');
   const buttonCount = config.buttonCount || 0;
   const clickZones = config.clickZones || [];
   const anims = animations || [];
@@ -156,7 +157,7 @@ export function generateHTML(template, config, assets, animations) {
 
   // Generate button HTML
   const buttonsHTML =
-    hasVideo && buttonCount > 0
+    hasVideo && hasButtons && buttonCount > 0
       ? Array.from({ length: buttonCount }, (_, i) => {
           const btn = config.buttons[i] || {};
           return `<div id="ctaButton${i + 1}" class="cta-button">${btn.text || `Button ${i + 1}`}</div>`;
@@ -215,7 +216,7 @@ export function generateHTML(template, config, assets, animations) {
         </div>`
             : ''
         }
-        ${hasVideo ? `<video id="videoId" autoplay width="900" height="${config.videoHeight || 60}"><source src="assets/video.mp4" type="video/mp4" /></video>` : ''}
+        ${hasVideo ? `<video id="videoId" autoplay width="100%" height="${config.videoHeight}" style="position:relative;top:-27px"><source src="assets/video.mp4" type="video/mp4" /></video>` : ''}
         ${buttonsHTML}
     </div>
     <script src="script/ad.js"><\/script>
@@ -466,6 +467,7 @@ export function generateButtonsCSS(config) {
     text-align: center;
     padding: 2px;
     margin: 6px;
+    margin-left: 22px;
     -webkit-tap-highlight-color: transparent;
     cursor: pointer;
 }

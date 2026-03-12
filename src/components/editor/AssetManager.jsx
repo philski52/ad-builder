@@ -109,7 +109,7 @@ function AssetManager() {
         <h4 className="text-sm font-medium text-gray-700 mb-2">Requirements</h4>
         <ul className="text-xs text-gray-500 space-y-1">
           <li>• Dimensions: {currentTemplate.dimensions.width}x{currentTemplate.dimensions.height}px</li>
-          <li>• Formats: PNG, JPG (no SVG)</li>
+          {hasVideo ? '' : <li>• Formats: PNG, JPG (no SVG)</li>}
           {hasVideo && <li>• Video: MP4 (H.264), optimized for device</li>}
           {hasISI && <li>• ISI: Rasterized text as image</li>}
         </ul>

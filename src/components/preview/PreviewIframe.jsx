@@ -12,8 +12,8 @@ import {
 } from '../../utils/templateGenerator';
 
 function DeviceSimulator({ dimensions, scale, children }) {
-  const frameWidth = dimensions.width * scale + 32;
-  const frameHeight = dimensions.height * scale + 32;
+  const frameWidth = dimensions.width * scale + 52;
+  const frameHeight = dimensions.height * scale + 52;
 
   return (
     <div className="relative inline-block">
