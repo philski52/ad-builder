@@ -34,3 +34,21 @@
 .preview-container {
   transform-origin: top left;
 }
+
+.cta-button {
+  background-color: #2e8e95;
+  height: auto;
+  border: none;
+  display: block;
+  border-radius: 16px;
+  color: #fff;
+  font-family: Roboto, sans-serif;
+  font-size: 30px;
+  text-align: center;
+  top: auto;
+  width: 98%;
+  padding: 2px;
+  margin: 6px;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}

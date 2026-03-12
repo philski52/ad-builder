@@ -1,37 +1,42 @@
 // Template code generator
 // Generates HTML, JS, and CSS based on template type and configuration
 
-import { hasFeature } from '../templates'
+import { hasFeature } from '../templates';
 
 /**
  * Generate all template code files
  */
-export function generateTemplateCode(template, config, assets, animations = []) {
-  const hasISI = hasFeature(template, 'isi')
-  const hasVideo = hasFeature(template, 'video')
-  const hasButtons = hasVideo && config.buttonCount > 0
-  const hasClickZones = (config.clickZones || []).length > 0
+export function generateTemplateCode(
+  template,
+  config,
+  assets,
+  animations = [],
+) {
+  const hasISI = hasFeature(template, 'isi');
+  const hasVideo = hasFeature(template, 'video');
+  const hasButtons = hasVideo && config.buttonCount > 0;
+  const hasClickZones = (config.clickZones || []).length > 0;
 
   const result = {
     html: generateHTML(template, config, assets, animations),
     js: generateAdJS(config),
-    css: generateCSS(config)
-  }
+    css: generateCSS(config),
+  };
 
   if (hasISI) {
-    result.scrollerCss = generateScrollerCSS(config)
-    result.mainJs = generateMainJS(config)
+    result.scrollerCss = generateScrollerCSS(config);
+    result.mainJs = generateMainJS(config);
   }
 
   if (hasButtons) {
-    result.buttonsCss = generateButtonsCSS(config)
+    result.buttonsCss = generateButtonsCSS(config);
   }
 
   if (hasClickZones) {
-    result.clicksCss = generateClicksCSS(config)
+    result.clicksCss = generateClicksCSS(config);
   }
 
-  return result
+  return result;
 }
 
 /**
@@ -39,61 +44,66 @@ export function generateTemplateCode(template, config, assets, animations = []) 
  */
 function formatAnimProps(props) {
   const parts = Object.entries(props).map(([k, v]) => {
-    if (k === 'ease') return `${k}: ${v}`
-    if (typeof v === 'string') return `${k}: "${v}"`
-    return `${k}: ${v}`
-  })
-  return '{ ' + parts.join(', ') + ' }'
+    if (k === 'ease') return `${k}: ${v}`;
+    if (typeof v === 'string') return `${k}: "${v}"`;
+    return `${k}: ${v}`;
+  });
+  return '{ ' + parts.join(', ') + ' }';
 }
 
 /**
  * Generate TweenMax animation JS from animation data array
  */
 function generateAnimationJS(animations) {
-  if (!animations || animations.length === 0) return ''
+  if (!animations || animations.length === 0) return '';
 
-  const sorted = [...animations].sort((a, b) => a.startTime - b.startTime)
-  const setLines = []
-  const toLines = []
-  const initialized = new Set()
+  const sorted = [...animations].sort((a, b) => a.startTime - b.startTime);
+  const setLines = [];
+  const toLines = [];
+  const initialized = new Set();
 
   for (const anim of sorted) {
-    const sel = `"#${anim.target}"`
-    const props = {}
-    const initProps = {}
+    const sel = `"#${anim.target}"`;
+    const props = {};
+    const initProps = {};
 
     if (anim.effects.autoAlpha !== undefined) {
-      props.autoAlpha = anim.effects.autoAlpha.to
-      initProps.autoAlpha = anim.effects.autoAlpha.from
+      props.autoAlpha = anim.effects.autoAlpha.to;
+      initProps.autoAlpha = anim.effects.autoAlpha.from;
     }
     if (anim.effects.x !== undefined) {
-      props.x = anim.effects.x.to
-      initProps.x = anim.effects.x.from
+      props.x = anim.effects.x.to;
+      initProps.x = anim.effects.x.from;
     }
     if (anim.effects.y !== undefined) {
-      props.y = anim.effects.y.to
-      initProps.y = anim.effects.y.from
+      props.y = anim.effects.y.to;
+      initProps.y = anim.effects.y.from;
     }
     if (anim.effects.rotation !== undefined) {
-      props.rotation = anim.effects.rotation.to
-      initProps.rotation = anim.effects.rotation.from
+      props.rotation = anim.effects.rotation.to;
+      initProps.rotation = anim.effects.rotation.from;
     }
     if (anim.effects.scale !== undefined) {
-      props.scale = anim.effects.scale.to
-      initProps.scale = anim.effects.scale.from
+      props.scale = anim.effects.scale.to;
+      initProps.scale = anim.effects.scale.from;
     }
     if (anim.easing && anim.easing !== 'none') {
-      props.ease = anim.easing
+      props.ease = anim.easing;
     }
 
     if (!initialized.has(anim.target) && Object.keys(initProps).length > 0) {
-      initialized.add(anim.target)
-      setLines.push(`    TweenMax.set(${sel}, ${formatAnimProps(initProps)});`)
+      initialized.add(anim.target);
+      setLines.push(`    TweenMax.set(${sel}, ${formatAnimProps(initProps)});`);
     }
 
-    const label = anim.target.replace(/([a-z])(\d)/, '$1 $2').toUpperCase() + ' - ' + (anim.type === 'in' ? 'IN' : 'OUT')
-    toLines.push(`    //${label}`)
-    toLines.push(`    tl.to(${sel}, ${anim.duration}, ${formatAnimProps(props)}, ${anim.startTime});`)
+    const label =
+      anim.target.replace(/([a-z])(\d)/, '$1 $2').toUpperCase() +
+      ' - ' +
+      (anim.type === 'in' ? 'IN' : 'OUT');
+    toLines.push(`    //${label}`);
+    toLines.push(
+      `    tl.to(${sel}, ${anim.duration}, ${formatAnimProps(props)}, ${anim.startTime});`,
+    );
   }
 
   return `
@@ -116,53 +126,59 @@ window.addEventListener('message', function(e) {
         tl.restart();
     }
 });
-`
+`;
 }
 
 /**
  * Generate index.html
  */
 export function generateHTML(template, config, assets, animations) {
-  const hasISI = hasFeature(template, 'isi')
-  const hasAnimation = hasFeature(template, 'animation')
-  const hasVideo = hasFeature(template, 'video')
-  const buttonCount = config.buttonCount || 0
-  const clickZones = config.clickZones || []
-  const anims = animations || []
+  const hasISI = hasFeature(template, 'isi');
+  const hasAnimation = hasFeature(template, 'animation');
+  const hasVideo = hasFeature(template, 'video');
+  const buttonCount = config.buttonCount || 0;
+  const clickZones = config.clickZones || [];
+  const anims = animations || [];
 
   // Generate frame HTML for animated templates
-  const frames = assets.frames || []
-  let framesHTML = ''
+  const frames = assets.frames || [];
+  let framesHTML = '';
   if (hasAnimation && frames.length > 0) {
-    framesHTML = frames.map((_, i) => `
+    framesHTML = frames
+      .map(
+        (_, i) => `
         <div id="frame${i + 1}">
             <img src="assets/frame${i + 1}.png" width="${config.dimensions.width}">
-        </div>`).join('')
+        </div>`,
+      )
+      .join('');
   }
 
   // Generate button HTML
-  const buttonsHTML = hasVideo && buttonCount > 0 ?
-    Array.from({ length: buttonCount }, (_, i) => {
-      const btn = config.buttons[i] || {}
-      return `<div id="ctaButton${i + 1}" class="cta-button">${btn.text || `Button ${i + 1}`}</div>`
-    }).join('\n        ') : ''
+  const buttonsHTML =
+    hasVideo && buttonCount > 0
+      ? Array.from({ length: buttonCount }, (_, i) => {
+          const btn = config.buttons[i] || {};
+          return `<div id="ctaButton${i + 1}" class="cta-button">${btn.text || `Button ${i + 1}`}</div>`;
+        }).join('\n        ')
+      : '';
 
   // Generate click zone HTML - non-ISI zones (go in container)
   const containerZonesHTML = clickZones
-    .filter(z => !z.inISI)
-    .map(z => `<div id="${z.id}" class="click-zone"></div>`)
-    .join('\n        ')
+    .filter((z) => !z.inISI)
+    .map((z) => `<div id="${z.id}" class="click-zone"></div>`)
+    .join('\n        ');
 
   // Generate click zone HTML - ISI zones (go in innerMostDiv)
   const isiZonesHTML = clickZones
-    .filter(z => z.inISI)
-    .map(z => `<div id="${z.id}" class="click-zone"></div>`)
-    .join('\n                ')
+    .filter((z) => z.inISI)
+    .map((z) => `<div id="${z.id}" class="click-zone"></div>`)
+    .join('\n                ');
 
-  const hasClickZones = clickZones.length > 0
+  const hasClickZones = clickZones.length > 0;
 
   // Generate animation JS
-  const animationScript = generateAnimationJS(anims)
+  const animationScript = generateAnimationJS(anims);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -185,7 +201,9 @@ export function generateHTML(template, config, assets, animations) {
         ${!hasVideo ? `<img class="background" src="assets/background.png" width="${config.dimensions.width}px">` : ''}
         ${framesHTML}
         ${containerZonesHTML}
-        ${hasISI ? `
+        ${
+          hasISI
+            ? `
         <div id="outerMostDiv">
             <div id="innerMostDiv">
                 <div id="isi-content-wrapper">
@@ -194,7 +212,9 @@ export function generateHTML(template, config, assets, animations) {
                 </div>
             </div>
             <div id="isi-controls"></div>
-        </div>` : ''}
+        </div>`
+            : ''
+        }
         ${hasVideo ? `<video id="videoId" autoplay><source src="assets/video.mp4" type="video/mp4" /></video>` : ''}
         ${buttonsHTML}
     </div>
@@ -203,46 +223,50 @@ export function generateHTML(template, config, assets, animations) {
     ${animationScript ? `<script>${animationScript}<\/script>` : ''}
 
 </body>
-</html>`
+</html>`;
 }
 
 /**
  * Generate ad.js (click handlers)
  */
 export function generateAdJS(config) {
-  const clickZones = config.clickZones || []
-  const globalJobId = config.jobId || ''
+  const clickZones = config.clickZones || [];
+  const globalJobId = config.jobId || '';
 
   // Generate clickTag variable declarations
-  const clickTagVars = clickZones.map((zone, i) => {
-    const varName = zone.id.replace(/[^a-zA-Z0-9]/g, '_')
-    return `    var ${varName} = "${zone.url}";`
-  }).join('\n')
+  const clickTagVars = clickZones
+    .map((zone, i) => {
+      const varName = zone.id.replace(/[^a-zA-Z0-9]/g, '_');
+      return `    var ${varName} = "${zone.url}";`;
+    })
+    .join('\n');
 
   // Generate click handlers based on link type
-  const clickHandlers = clickZones.map(zone => {
-    const varName = zone.id.replace(/[^a-zA-Z0-9]/g, '_')
-    const linkType = zone.linkType || 'url'
+  const clickHandlers = clickZones
+    .map((zone) => {
+      const varName = zone.id.replace(/[^a-zA-Z0-9]/g, '_');
+      const linkType = zone.linkType || 'url';
 
-    let handlerFn = ''
-    let comment = ''
-    if (linkType === 'url') {
-      comment = 'LINK'
-      handlerFn = `openExternalLinkFull(e, ${varName});`
-    } else if (linkType === 'pdf') {
-      comment = 'PDF'
-      handlerFn = `openExternalPDF(e, ${varName});`
-    } else if (linkType === 'mod') {
-      comment = 'MOD-INT'
-      const jobId = zone.jobId || globalJobId
-      handlerFn = `openMod("${jobId}");`
-    }
+      let handlerFn = '';
+      let comment = '';
+      if (linkType === 'url') {
+        comment = 'LINK';
+        handlerFn = `openExternalLinkFull(e, ${varName});`;
+      } else if (linkType === 'pdf') {
+        comment = 'PDF';
+        handlerFn = `openExternalPDF(e, ${varName});`;
+      } else if (linkType === 'mod') {
+        comment = 'MOD-INT';
+        const jobId = zone.jobId || globalJobId;
+        handlerFn = `openMod("${jobId}");`;
+      }
 
-    return `        //${comment}
+      return `        //${comment}
         $('#${zone.id}')[0].addEventListener("click", function (e) {
             ${handlerFn}
-        }, false);`
-  }).join('\n')
+        }, false);`;
+    })
+    .join('\n');
 
   return `$(document).ready(function () {
 
@@ -282,7 +306,7 @@ ${clickHandlers}
 
     assignClickHandlers();
 
-});`
+});`;
 }
 
 /**
@@ -296,24 +320,24 @@ body { overflow: hidden; }
 #clickTag1 { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: pointer; }
 [id^="frame"] { position: absolute; top: 0; left: 0; visibility: hidden; opacity: 0; }
 #outerMostDiv { position: absolute; bottom: 0; left: 0; width: 100%; height: 540px; background: white; overflow: hidden; }
-#innerMostDiv { position: absolute; width: 100%; overflow-y: auto; }`
+#innerMostDiv { position: absolute; width: 100%; overflow-y: auto; }`;
 }
 
 /**
  * Generate scroller.css for ISI templates
  */
 export function generateScrollerCSS(config) {
-  const isiHeight = config.isiHeight || 540
-  const isiTop = config.isiTop || (config.dimensions.height - isiHeight)
-  const isiWidth = config.isiWidth || config.dimensions.width
-  const isiLeft = config.isiLeft || 0
-  const isiBackgroundColor = config.isiBackgroundColor || '#ffffff'
-  const scrollerColor = config.scrollerColor || '#798280'
-  const scrollerWidth = config.scrollerWidth || 12
-  const scrollerHeight = config.scrollerHeight || 35
-  const scrollerBorderRadius = config.scrollerBorderRadius || 50
-  const scrollerTrackColor = config.scrollerTrackColor || '#b8bebc'
-  const scrollerTrackWidth = config.scrollerTrackWidth || 12
+  const isiHeight = config.isiHeight || 540;
+  const isiTop = config.isiTop || config.dimensions.height - isiHeight;
+  const isiWidth = config.isiWidth || config.dimensions.width;
+  const isiLeft = config.isiLeft || 0;
+  const isiBackgroundColor = config.isiBackgroundColor || '#ffffff';
+  const scrollerColor = config.scrollerColor || '#798280';
+  const scrollerWidth = config.scrollerWidth || 12;
+  const scrollerHeight = config.scrollerHeight || 35;
+  const scrollerBorderRadius = config.scrollerBorderRadius || 50;
+  const scrollerTrackColor = config.scrollerTrackColor || '#b8bebc';
+  const scrollerTrackWidth = config.scrollerTrackWidth || 12;
 
   return `/* Scroller CSS for ISI */
 #outerMostDiv {
@@ -389,28 +413,33 @@ export function generateScrollerCSS(config) {
 
 ::-webkit-scrollbar {
     -webkit-appearance: none;
-}`
+}`;
 }
 
 /**
  * Generate buttons.css for video templates
  */
 export function generateButtonsCSS(config) {
-  const buttonCount = config.buttonCount || 0
-  if (buttonCount === 0) return ''
+  const buttonCount = config.buttonCount || 0;
+  if (buttonCount === 0) return '';
 
   let css = `/* Button Styles */
 .cta-button {
-    position: absolute;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-family: Arial, sans-serif;
-    font-weight: bold;
-    text-align: center;
-    transition: all 0.2s ease;
-    box-sizing: border-box;
+  background-color: #2e8e95;
+  height: auto;
+  border: none;
+  display: block;
+  border-radius: 16px;
+  color: #fff;
+  font-family: Roboto, sans-serif;
+  font-size: 30px;
+  text-align: center;
+  top: auto;
+  width: 98%;
+  padding: 2px;
+  margin: 6px;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
 
 .cta-button:hover {
@@ -418,33 +447,40 @@ export function generateButtonsCSS(config) {
     transform: scale(1.02);
 }
 
-`
+`;
   // Generate CSS for each button
   for (let i = 0; i < buttonCount; i++) {
-    const btn = config.buttons[i] || {}
+    const btn = config.buttons[i] || {};
     css += `#ctaButton${i + 1} {
-    background-color: ${btn.bgColor || '#6cc04a'};
+    display: block;
+    background-color: ${btn.bgColor || '#2e8e95'};
     color: ${btn.textColor || '#ffffff'};
-    border: 2px solid ${btn.borderColor || btn.bgColor || '#6cc04a'};
-    border-radius: ${btn.borderRadius || 4}px;
-    width: ${btn.width || 200}px;
-    height: ${btn.height || 50}px;
+    border: 2px solid ${btn.borderColor || btn.bgColor || 'none'};
+    border-radius: ${btn.borderRadius || 16}px;
+    width: ${`${btn.width}px` || '98%'};
+    height: ${`${btn.height}px` || 'auto'};
     top: ${btn.top || 100}px;
     left: ${btn.left || 50}px;
     font-size: ${Math.floor((btn.height || 50) * 0.35)}px;
+    font-family: Roboto, sans-serif;
+    text-align: center;
+    padding: 2px;
+    margin: 6px;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
 }
 
-`
+`;
   }
-  return css
+  return css;
 }
 
 /**
  * Generate clicks.css for click zones
  */
 export function generateClicksCSS(config) {
-  const clickZones = config.clickZones || []
-  if (clickZones.length === 0) return ''
+  const clickZones = config.clickZones || [];
+  if (clickZones.length === 0) return '';
 
   let css = `/* Click Zone Styles */
 .click-zone {
@@ -453,9 +489,9 @@ export function generateClicksCSS(config) {
     z-index: 10;
 }
 
-`
+`;
   // Generate CSS for each zone
-  clickZones.forEach(zone => {
+  clickZones.forEach((zone) => {
     css += `#${zone.id} {
     top: ${zone.top}px;
     left: ${zone.left}px;
@@ -463,17 +499,17 @@ export function generateClicksCSS(config) {
     height: ${zone.height}px;
 }
 
-`
-  })
-  return css
+`;
+  });
+  return css;
 }
 
 /**
  * Generate main.js for ISI scroller functionality
  */
 export function generateMainJS(config) {
-  const scrollStep = config.scrollStep || 5
-  const autoScrollSpeed = config.autoScrollSpeed || 80
+  const scrollStep = config.scrollStep || 5;
+  const autoScrollSpeed = config.autoScrollSpeed || 80;
   return `var _loadedImages = 0,
     _tl = new TimelineMax({delay: 0}),
     _isiText = document.getElementById('innerMostDiv'),
@@ -606,5 +642,5 @@ function clearIntervalFunct() {
 
 $(document).ready(function() {
     init2();
-});`
+});`;
 }
