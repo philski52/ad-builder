@@ -10,6 +10,11 @@ import {
   generateClicksCSS,
   generateButtonsCSS,
 } from '../../utils/templateGenerator';
+import controlsCss from '../../utils/controls/ixr-7-controls.css?raw';
+import controlsJs from '../../utils/controls/controls.js?raw';
+import playArrowUrl from '../../utils/controls/PlayArrowFilled.png';
+import pauseUrl from '../../utils/controls/PauseFilled.png';
+import volumeUpUrl from '../../utils/controls/VolumeUpFilled.png';
 
 function DeviceSimulator({ dimensions, scale, children }) {
   const frameWidth = dimensions.width * scale + 52;
@@ -38,6 +43,8 @@ function PreviewIframe() {
   const assets = useProjectStore((state) => state.assets);
   const animations = useProjectStore((state) => state.animations);
   const updateConfig = useProjectStore((state) => state.updateConfig);
+
+  const hasVideo = hasFeature(currentTemplate, 'video');
 
   const [scale, setScale] = useState(0.4);
   const [key, setKey] = useState(0);
@@ -140,6 +147,7 @@ function PreviewIframe() {
     const adJs = generateAdJS(config);
     const clicksCss = generateClicksCSS(config);
     const buttonCss = generateButtonsCSS(config);
+  
 
     // Inline CSS
     html = html.replace(
@@ -147,6 +155,14 @@ function PreviewIframe() {
       `<style>${css}\n${scrollerCss}\n${clicksCss}\n${buttonCss}</style>`,
     );
     html = html.replace(/<link rel="stylesheet" href="css\/[^"]+\.css">/g, '');
+
+    // Inline controls CSS when hasVideo
+    if (hasVideo) {
+      html = html.replace(
+        '<link rel="stylesheet" href="controls/ixr-7-controls.css">',
+        `<style>${controlsCss}</style>`,
+      );
+    }
 
     // Inline ad.js
     html = html.replace(
@@ -159,6 +175,18 @@ function PreviewIframe() {
       html = html.replace(
         '<script src="script/main.js"></script>',
         `<script>${mainJs}</script>`,
+      );
+    }
+
+    // Inline controls.js when hasVideo, with images replaced by data URLs
+    if (hasVideo) {
+      const inlinedControlsJs = controlsJs
+        .replace('controls/PlayArrowFilled.png', playArrowUrl)
+        .replace('controls/PauseFilled.png', pauseUrl)
+        .replace('controls/VolumeUpFilled.png', volumeUpUrl);
+      html = html.replace(
+        '<script src="controls/controls.js"></script>',
+        `<script>${inlinedControlsJs}</script>`,
       );
     }
 
@@ -808,6 +836,7 @@ function PreviewIframe() {
           {/* Non-ISI Click Zone Overlays */}
           {(config.clickZones || [])
             .filter((z) => !z.inISI)
+            .filter((z) => !(hasVideo && z.id === 'clickTag1'))
             .map((zone, idx) => {
               const actualIndex = (config.clickZones || []).indexOf(zone);
               const isBeingDragged =

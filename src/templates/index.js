@@ -141,7 +141,7 @@ export const templates = [
     dimensions: { width: 1000, height: 1000 },
     features: ['video', 'buttons'],
     requiredAssets: ['video'],
-    configFields: ['clickTag3', 'clickTag4', 'videoHeight', 'showVideoControls'],
+    configFields: ['videoHeight', 'showVideoControls'],
     thumbnail: null
   },
   {
@@ -153,7 +153,7 @@ export const templates = [
     dimensions: { width: 1000, height: 1600 },
     features: ['video', 'buttons'],
     requiredAssets: ['video'],
-    configFields: ['clickTag1', 'clickTag2', 'clickTag3', 'clickTag4', 'videoHeight', 'showVideoControls'],
+    configFields: ['videoHeight', 'showVideoControls'],
     thumbnail: null
   },
 

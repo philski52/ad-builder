@@ -487,48 +487,48 @@ function ConfigPanel() {
                             <label className="block text-xs text-gray-500 mb-1">Left</label>
                             <input
                               type="number"
-                              value={btn.left || 50}
+                              value={btn.left}
                               onChange={(e) =>
                                 updateButton('left', parseInt(e.target.value))
                               }
                               className="px-2 py-1 border rounded text-xs w-full"
-                              placeholder="Left"
+                              placeholder="0"
                             />
                           </div>
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">Top</label>
                             <input
                               type="number"
-                              value={btn.top || 100}
+                              value={btn.top}
                               onChange={(e) =>
                                 updateButton('top', parseInt(e.target.value))
                               }
                               className="px-2 py-1 border rounded text-xs w-full"
-                              placeholder="Top"
+                              placeholder="0"
                             />
                           </div>
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">Width</label>
                             <input
                               type="number"
-                              value={btn.width || 200}
+                              value={Math.abs(btn.width)}
                               onChange={(e) =>
                                 updateButton('width', parseInt(e.target.value))
                               }
                               className="px-2 py-1 border rounded text-xs w-full"
-                              placeholder="Width"
+                              placeholder="200"
                             />
                           </div>
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">Height</label>
                             <input
                               type="number"
-                              value={btn.height || 50}
+                              value={Math.abs(btn.height)}
                               onChange={(e) =>
                                 updateButton('height', parseInt(e.target.value))
                               }
                               className="px-2 py-1 border rounded text-xs w-full"
-                              placeholder="Height"
+                              placeholder="50"
                             />
                           </div>
                         </div>

@@ -167,6 +167,7 @@ export function generateHTML(template, config, assets, animations) {
   // Generate click zone HTML - non-ISI zones (go in container)
   const containerZonesHTML = clickZones
     .filter((z) => !z.inISI)
+    .filter((z) => !(hasVideo && z.id === 'clickTag1'))
     .map((z) => `<div id="${z.id}" class="click-zone"></div>`)
     .join('\n        ');
 
@@ -196,6 +197,7 @@ export function generateHTML(template, config, assets, animations) {
     ${hasISI ? `<link rel="stylesheet" href="css/scroller.css">` : ''}
     ${hasClickZones ? `<link rel="stylesheet" href="css/clicks.css">` : ''}
     ${hasVideo && buttonCount > 0 ? `<link rel="stylesheet" href="css/buttons.css">` : ''}
+    ${hasVideo ? `<link rel="stylesheet" href="controls/ixr-7-controls.css">` : ''}
 </head>
 <body>
     <div id="container">
@@ -216,9 +218,12 @@ export function generateHTML(template, config, assets, animations) {
         </div>`
             : ''
         }
-        ${hasVideo ? `<video id="videoId" autoplay width="100%" height="${config.videoHeight}" style="position:relative;top:-27px"><source src="assets/video.mp4" type="video/mp4" /></video>` : ''}
-        ${buttonsHTML}
+        ${hasVideo ? `<video id="videoId" autoplay width="100%" height="${config.videoHeight}" style="position:relative;top:-27px;border-bottom:1px solid #808080;"><source src="assets/video.mp4" type="video/mp4" /></video>` : ''}
+        <div class="buttons">
+          ${buttonsHTML}
+        </div>
     </div>
+    ${hasVideo ? `<script src="controls/controls.js"><\/script>` : ''}
     <script src="script/ad.js"><\/script>
     ${hasISI ? `<script src="script/main.js"><\/script>` : ''}
     ${animationScript ? `<script>${animationScript}<\/script>` : ''}
@@ -424,35 +429,12 @@ export function generateButtonsCSS(config) {
   const buttonCount = config.buttonCount || 0;
   if (buttonCount === 0) return '';
 
-  let css = `/* Button Styles */
-.cta-button {
-  background-color: #2e8e95;
-  height: auto;
-  border: none;
-  display: block;
-  border-radius: 16px;
-  color: #fff;
-  font-family: Roboto, sans-serif;
-  font-size: 30px;
-  text-align: center;
-  top: auto;
-  width: 98%;
-  padding: 2px;
-  margin: 6px;
-  -webkit-tap-highlight-color: transparent;
-  cursor: pointer;
-}
-
-.cta-button:hover {
-    opacity: 0.9;
-    transform: scale(1.02);
-}
-
-`;
+  let css = '';
   // Generate CSS for each button
   for (let i = 0; i < buttonCount; i++) {
     const btn = config.buttons[i] || {};
     css += `#ctaButton${i + 1} {
+    position: relative;
     display: block;
     background-color: ${btn.bgColor || '#2e8e95'};
     color: ${btn.textColor || '#ffffff'};
@@ -460,8 +442,8 @@ export function generateButtonsCSS(config) {
     border-radius: ${btn.borderRadius || 16}px;
     width: ${`${btn.width}px` || '98%'};
     height: ${`${btn.height}px` || 'auto'};
-    top: ${btn.top || 100}px;
-    left: ${btn.left || 50}px;
+    top: ${btn.top}px;
+    left: ${btn.left}px;
     font-size: ${Math.floor((btn.height || 50) * 0.35)}px;
     font-family: Roboto, sans-serif;
     text-align: center;
@@ -471,7 +453,10 @@ export function generateButtonsCSS(config) {
     -webkit-tap-highlight-color: transparent;
     cursor: pointer;
 }
-
+    .buttons {
+      position: relative;
+      top: 114px;
+    }
 `;
   }
   return css;
