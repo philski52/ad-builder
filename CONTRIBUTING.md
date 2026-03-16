@@ -76,7 +76,7 @@ git pull origin main
 
 - `main` - Production-ready code (protected)
 - `feature/clicktags` - Click zone and link type functionality (Philip)
-- `feature/interstitials` - Interstitial ad functionality
+- `feature/interstitials` - Interstitial ad functionality (Adam)
 
 ## Questions?
 

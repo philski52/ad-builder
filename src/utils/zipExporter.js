@@ -5,6 +5,13 @@ import JSZip from 'jszip'
 import { generateTemplateCode, generateMainJS } from './templateGenerator'
 import { hasFeature } from '../templates'
 
+// Controls assets (loaded at build time via Vite)
+import controlsJs from './controls/controls.js?raw'
+import controlsCss from './controls/ixr-7-controls.css?raw'
+import playArrowUrl from './controls/PlayArrowFilled.png?url'
+import pauseUrl from './controls/PauseFilled.png?url'
+import volumeUrl from './controls/VolumeUpFilled.png?url'
+
 /**
  * Convert data URL to blob
  */
@@ -87,6 +94,25 @@ export async function exportAdZip(template, config, assets, projectName, animati
   if (assets.video?.dataUrl) {
     const blob = dataUrlToBlob(assets.video.dataUrl)
     assetsFolder.file('video.mp4', blob)
+  }
+
+  // Add controls folder for video templates
+  if (hasFeature(template, 'video')) {
+    const controlsFolder = zip.folder('controls')
+    controlsFolder.file('controls.js', controlsJs)
+    controlsFolder.file('ixr-7-controls.css', controlsCss)
+    const imageFiles = [
+      { name: 'PlayArrowFilled.png', url: playArrowUrl },
+      { name: 'PauseFilled.png', url: pauseUrl },
+      { name: 'VolumeUpFilled.png', url: volumeUrl },
+    ]
+    await Promise.all(
+      imageFiles.map(async ({ name, url }) => {
+        const res = await fetch(url)
+        const blob = await res.blob()
+        controlsFolder.file(name, blob)
+      })
+    )
   }
 
   // Generate zip blob

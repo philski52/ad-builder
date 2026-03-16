@@ -27,7 +27,7 @@ $(document).ready(function () {
 
         theCSS.rel  = "stylesheet";
         theCSS.type = "text/css";
-        theCSS.href = "assets/ixr-7-controls.css";
+        theCSS.href = "controls/ixr-7-controls.css";
         videoControls.id = "ixrVideoControls";
         playButton.id = "playButton";
         pauseButton.id = "pauseButton";
@@ -53,7 +53,7 @@ $(document).ready(function () {
 
         //Calculate Controls Position
         if (typeof calculatedVideoHeight !== "undefined" && calculatedVideoHeight > 0) {
-            videoControls.style.top = 533 + 'px';
+            videoControls.style.top = 562 + 'px';
             volumeControls.style.top = 582 + 'px';
         } else {
             videoControls.style.top = videoHeight + 'px';

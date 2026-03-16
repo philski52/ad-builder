@@ -10,6 +10,7 @@ function ConfigPanel() {
 
   const hasISI = hasFeature(currentTemplate, 'isi');
   const hasVideo = hasFeature(currentTemplate, 'video');
+  const hasButtons = hasFeature(currentTemplate, 'buttons');
   const hasExpandable = hasFeature(currentTemplate, 'expandable');
   const hasAnimation = hasFeature(currentTemplate, 'animation');
   const maxButtonCount = currentTemplate.id === 'int-mod-video-1-2-buttons' ? 2 : 4;
@@ -410,27 +411,29 @@ function ConfigPanel() {
             </label>
           </div>
 
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">
-              Button Count
-            </label>
-            <select
-              value={Math.min(config.buttonCount || 0, maxButtonCount)}
-              onChange={(e) =>
-                updateConfig('buttonCount', parseInt(e.target.value))
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value={0}>No Buttons</option>
-              <option value={1}>1 Button</option>
-              <option value={2}>2 Buttons</option>
-              {maxButtonCount >= 3 && <option value={3}>3 Buttons</option>}
-              {maxButtonCount >= 4 && <option value={4}>4 Buttons</option>}
-            </select>
-          </div>
+          {hasButtons && (
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">
+                Button Count
+              </label>
+              <select
+                value={Math.min(config.buttonCount || 0, maxButtonCount)}
+                onChange={(e) =>
+                  updateConfig('buttonCount', parseInt(e.target.value))
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value={0}>No Buttons</option>
+                <option value={1}>1 Button</option>
+                <option value={2}>2 Buttons</option>
+                {maxButtonCount >= 3 && <option value={3}>3 Buttons</option>}
+                {maxButtonCount >= 4 && <option value={4}>4 Buttons</option>}
+              </select>
+            </div>
+          )}
 
           {/* Button Configuration */}
-          {config.buttonCount > 0 && (
+          {hasButtons && config.buttonCount > 0 && (
             <div className="space-y-3 mt-4">
               <h4 className="text-sm font-medium text-gray-600">
                 Button Settings

@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+// Default button configuration
+const DEFAULT_BUTTONS = [
+  { text: 'Button 1', bgColor: '#2e8e95', textColor: '#fff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
+  { text: 'Button 2', bgColor: '#2e8e95', textColor: '#fff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
+  { text: 'Button 3',   bgColor: '#2e8e95', textColor: '#fff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
+  { text: 'Button 4',   bgColor: '#2e8e95', textColor: '#fff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
+];
+
 // Default ISI dimensions per brand/size
 const ISI_DEFAULTS = {
   cp: { isiWidth: 1080, isiHeight: 540, isiTop: 1193, isiLeft: 0 },
@@ -56,52 +64,7 @@ export const useProjectStore = create(
         showVideoControls: true,
         // Button settings (for INT templates)
         buttonCount: 2,
-        buttons: [
-          {
-            text: 'Learn More',
-            bgColor: '#6cc04a',
-            textColor: '#ffffff',
-            borderColor: '#6cc04a',
-            borderRadius: 4,
-            width: 200,
-            height: 50,
-            top: 100,
-            left: 50,
-          },
-          {
-            text: 'Contact Us',
-            bgColor: '#0066cc',
-            textColor: '#ffffff',
-            borderColor: '#0066cc',
-            borderRadius: 4,
-            width: 200,
-            height: 50,
-            top: 100,
-            left: 300,
-          },
-          {
-            text: 'Button 3',
-            bgColor: '#333333',
-            textColor: '#ffffff',
-            borderColor: '#333333',
-            borderRadius: 4,
-            width: 200,
-            height: 50,
-            top: 160,
-            left: 50,
-          },
-          {
-            text: 'Button 4',
-            bgColor: '#333333',
-            textColor: '#ffffff',
-            borderColor: '#333333',
-            borderRadius: 4,
-            width: 200,
-            height: 50,
-            top: 160,
-            left: 300,
-          },
-        ],
+        buttons: DEFAULT_BUTTONS.map((button) => ({ ...button })),
         // Click Zones (for MR and CP templates)
         // linkType: 'url' | 'pdf' | 'mod'
         // jobId: string (for mod fallback URL)
@@ -169,6 +132,9 @@ export const useProjectStore = create(
               },
             ],
             jobId: '',
+            // Reset buttons and video controls to defaults when switching templates
+            showVideoControls: true,
+            buttons: DEFAULT_BUTTONS.map((button) => ({ ...button })),
           },
         });
       },

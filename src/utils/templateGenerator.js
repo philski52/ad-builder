@@ -160,7 +160,7 @@ export function generateHTML(template, config, assets, animations) {
     hasVideo && hasButtons && buttonCount > 0
       ? Array.from({ length: buttonCount }, (_, i) => {
           const btn = config.buttons[i] || {};
-          return `<div id="ctaButton${i + 1}" class="cta-button">${btn.text || `Button ${i + 1}`}</div>`;
+          return `<div id="ctaButton${i + 1}" class="cta-button" justify-content="center" ><p>${btn.text || `Button ${i + 1}</p>`}</div>`;
         }).join('\n        ')
       : '';
 
@@ -197,7 +197,7 @@ export function generateHTML(template, config, assets, animations) {
     ${hasISI ? `<link rel="stylesheet" href="css/scroller.css">` : ''}
     ${hasClickZones ? `<link rel="stylesheet" href="css/clicks.css">` : ''}
     ${hasVideo && buttonCount > 0 ? `<link rel="stylesheet" href="css/buttons.css">` : ''}
-    ${hasVideo ? `<link rel="stylesheet" href="controls/ixr-7-controls.css">` : ''}
+    ${hasVideo && config.showVideoControls ? `<link rel="stylesheet" href="controls/ixr-7-controls.css">` : ''}
 </head>
 <body>
     <div id="container">
@@ -218,12 +218,12 @@ export function generateHTML(template, config, assets, animations) {
         </div>`
             : ''
         }
-        ${hasVideo ? `<video id="videoId" autoplay width="100%" height="${config.videoHeight}" style="position:relative;top:-27px;border-bottom:1px solid #808080;"><source src="assets/video.mp4" type="video/mp4" /></video>` : ''}
+        ${hasVideo ? `<video id="videoId" autoplay width="100%" height="${config.videoHeight}" style="position:relative;${assets.video?.dataUrl ? '' : 'border-bottom:1px solid #808080;'}"><source src="${assets.video?.dataUrl ? 'assets/video.mp4' : ''}" type="video/mp4" /></video>` : ''}
         <div class="buttons">
           ${buttonsHTML}
         </div>
     </div>
-    ${hasVideo ? `<script src="controls/controls.js"><\/script>` : ''}
+    ${hasVideo && config.showVideoControls ? `<script src="controls/controls.js"><\/script>` : ''}
     <script src="script/ad.js"><\/script>
     ${hasISI ? `<script src="script/main.js"><\/script>` : ''}
     ${animationScript ? `<script>${animationScript}<\/script>` : ''}
@@ -320,7 +320,6 @@ ${clickHandlers}
  */
 export function generateCSS(config) {
   return `* { margin: 0; padding: 0; box-sizing: border-box; }
-body { overflow: hidden; }
 #container { position: absolute; width: ${config.dimensions.width}px; height: ${config.dimensions.height}px; overflow: hidden; background: white;}
 .background { position: absolute; top: 0; left: 0; }
 #clickTag1 { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: pointer; }
@@ -438,24 +437,26 @@ export function generateButtonsCSS(config) {
     display: block;
     background-color: ${btn.bgColor || '#2e8e95'};
     color: ${btn.textColor || '#ffffff'};
-    border: 2px solid ${btn.borderColor || btn.bgColor || 'none'};
-    border-radius: ${btn.borderRadius || 16}px;
-    width: ${`${btn.width}px` || '98%'};
-    height: ${`${btn.height}px` || 'auto'};
+    border: 2px solid none;
+    border-radius: 16px;
+    width: ${`${btn.width}px`};
+    height: ${`${btn.height}px`};
     top: ${btn.top}px;
     left: ${btn.left}px;
-    font-size: ${Math.floor((btn.height || 50) * 0.35)}px;
+    font-size: 30px;
     font-family: Roboto, sans-serif;
     text-align: center;
     padding: 2px;
     margin: 6px;
-    margin-left: 22px;
     -webkit-tap-highlight-color: transparent;
     cursor: pointer;
 }
+    #ctaButton${i + 1} p {
+      margin: 30px 0;
+    }
     .buttons {
       position: relative;
-      top: 114px;
+      top: 154px;
     }
 `;
   }
