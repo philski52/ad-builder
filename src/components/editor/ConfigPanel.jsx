@@ -12,6 +12,7 @@ function ConfigPanel() {
   const hasVideo = hasFeature(currentTemplate, 'video');
   const hasExpandable = hasFeature(currentTemplate, 'expandable');
   const hasAnimation = hasFeature(currentTemplate, 'animation');
+  const maxButtonCount = currentTemplate.id === 'int-mod-video-1-2-buttons' ? 2 : 4;
 
   return (
     <div className="p-4 space-y-6">
@@ -414,7 +415,7 @@ function ConfigPanel() {
               Button Count
             </label>
             <select
-              value={config.buttonCount || 0}
+              value={Math.min(config.buttonCount || 0, maxButtonCount)}
               onChange={(e) =>
                 updateConfig('buttonCount', parseInt(e.target.value))
               }
@@ -423,8 +424,8 @@ function ConfigPanel() {
               <option value={0}>No Buttons</option>
               <option value={1}>1 Button</option>
               <option value={2}>2 Buttons</option>
-              <option value={3}>3 Buttons</option>
-              <option value={4}>4 Buttons</option>
+              {maxButtonCount >= 3 && <option value={3}>3 Buttons</option>}
+              {maxButtonCount >= 4 && <option value={4}>4 Buttons</option>}
             </select>
           </div>
 
