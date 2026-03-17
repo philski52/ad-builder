@@ -3,10 +3,10 @@ import { persist } from 'zustand/middleware';
 
 // Default button configuration
 const DEFAULT_BUTTONS = [
-  { text: 'Button 1', bgColor: '#2e8e95', textColor: '#fff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
-  { text: 'Button 2', bgColor: '#2e8e95', textColor: '#fff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
-  { text: 'Button 3',   bgColor: '#2e8e95', textColor: '#fff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
-  { text: 'Button 4',   bgColor: '#2e8e95', textColor: '#fff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
+  { text: 'Button 1', bgColor: '#2e8e95', textColor: '#ffffff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
+  { text: 'Button 2', bgColor: '#2e8e95', textColor: '#ffffff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
+  { text: 'Button 3',   bgColor: '#2e8e95', textColor: '#ffffff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
+  { text: 'Button 4',   bgColor: '#2e8e95', textColor: '#ffffff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
 ];
 
 // Default ISI dimensions per brand/size
@@ -135,6 +135,7 @@ export const useProjectStore = create(
             // Reset buttons and video controls to defaults when switching templates
             showVideoControls: true,
             buttons: DEFAULT_BUTTONS.map((button) => ({ ...button })),
+            buttonCount: 0
           },
         });
       },

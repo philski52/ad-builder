@@ -54,7 +54,7 @@ $(document).ready(function () {
         //Calculate Controls Position
         if (typeof calculatedVideoHeight !== "undefined" && calculatedVideoHeight > 0) {
             videoControls.style.top = 562 + 'px';
-            volumeControls.style.top = 582 + 'px';
+            volumeControls.style.top = 614 + 'px';
         } else {
             videoControls.style.top = videoHeight + 'px';
             volumeControls.style.top = videoHeight + 50 + 'px';
