@@ -160,7 +160,7 @@ export function generateHTML(template, config, assets, animations) {
     hasVideo && hasButtons && buttonCount > 0
       ? Array.from({ length: buttonCount }, (_, i) => {
           const btn = config.buttons[i] || {};
-          return `<div id="ctaButton${i + 1}" class="cta-button" justify-content="center" ><p>${btn.text || `Button ${i + 1}</p>`}</div>`;
+          return `<div id="ctaButton${i + 1}" class="cta-button" justify-content="center" onclick="pauseVid();"><p>${btn.text || `Button ${i + 1}</p>`}</div>`;
         }).join('\n        ')
       : '';
 
@@ -190,7 +190,7 @@ export function generateHTML(template, config, assets, animations) {
     <meta name="ad.size" content="width=${config.dimensions.width},height=${config.dimensions.height}">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <title>Ad</title>
-    <script>var appHost = null; try { appHost = window.appHost = window.top.AppHost ? new window.top.AppHost(this) : null; } catch(e) { window.appHost = null; }<\/script>
+    <script>var appHost = null; try { appHost = window.appHost = window.top.AppHost ? new window.top.AppHost(this) : undefined; } catch(e) { window.appHost = null; }<\/script>
     <script src="https://code.jquery.com/jquery-2.1.4.min.js"><\/script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/2.0.1/TweenMax.min.js"><\/script>
     <link rel="stylesheet" href="css/main.css">
@@ -223,10 +223,18 @@ export function generateHTML(template, config, assets, animations) {
           ${buttonsHTML}
         </div>
     </div>
-    ${hasVideo && config.showVideoControls ? `<script src="controls/controls.js"><\/script>` : ''}
     <script src="script/ad.js"><\/script>
+    ${hasVideo && config.showVideoControls ? `<script src="controls/controls.js"><\/script>` : ''}
     ${hasISI ? `<script src="script/main.js"><\/script>` : ''}
     ${animationScript ? `<script>${animationScript}<\/script>` : ''}
+    ${hasVideo && hasButtons ? `
+        <script>
+          function pauseVid() {
+              var vid = document.getElementById("videoId");
+              vid.pause();
+          }
+        </script>
+      ` : ''}
 
 </body>
 </html>`;
