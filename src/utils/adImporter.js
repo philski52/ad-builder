@@ -2834,20 +2834,60 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
   // Store for use by other functions
   result.jsFolder = jsFolder
 
-  // 1. Add ad.size meta tag if missing
+  // 1. Ensure required meta tags are present
+  var metaChanges = []
+
+  // charset
+  if (!/charset/i.test(refactoredHtml)) {
+    var charsetMeta = '<meta charset="UTF-8">'
+    refactoredHtml = refactoredHtml.replace(/<head[^>]*>/i, '$&\n    ' + charsetMeta)
+    metaChanges.push('Added charset meta')
+  }
+
+  // ad.size
   var hasAdSizeMeta = /name=["']ad\.size["']/i.test(refactoredHtml)
   if (!hasAdSizeMeta && result.config?.dimensions) {
     var adSizeMeta = '<meta name="ad.size" content="width=' + result.config.dimensions.width + ',height=' + result.config.dimensions.height + '">'
-    // Insert after charset meta or as first meta in head
     if (refactoredHtml.includes('charset=')) {
       refactoredHtml = refactoredHtml.replace(/(<meta[^>]*charset[^>]*>)/i, '$1\n    ' + adSizeMeta)
-    } else if (refactoredHtml.includes('<head>')) {
-      refactoredHtml = refactoredHtml.replace('<head>', '<head>\n    ' + adSizeMeta)
+    } else {
+      refactoredHtml = refactoredHtml.replace(/<head[^>]*>/i, '$&\n    ' + adSizeMeta)
     }
+    metaChanges.push('Added ad.size meta')
+  }
+
+  // MR-specific meta tags: Cache-Control, Pragma, Expires, viewport
+  if (!isCPAd) {
+    if (!/Cache-Control/i.test(refactoredHtml)) {
+      var cacheMeta = '<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">'
+      cacheMeta += '\n    <meta http-equiv="Pragma" content="no-cache">'
+      cacheMeta += '\n    <meta http-equiv="Expires" content="0">'
+      // Insert after ad.size or charset
+      if (/name=["']ad\.size["']/i.test(refactoredHtml)) {
+        refactoredHtml = refactoredHtml.replace(/(<meta[^>]*ad\.size[^>]*>)/i, '$1\n    ' + cacheMeta)
+      } else {
+        refactoredHtml = refactoredHtml.replace(/(<meta[^>]*charset[^>]*>)/i, '$1\n    ' + cacheMeta)
+      }
+      metaChanges.push('Added Cache-Control, Pragma, Expires meta tags')
+    }
+
+    if (!/maximum-scale/i.test(refactoredHtml)) {
+      var viewportMeta = '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">'
+      // Insert after Expires or ad.size
+      if (/Expires/i.test(refactoredHtml)) {
+        refactoredHtml = refactoredHtml.replace(/(<meta[^>]*Expires[^>]*>)/i, '$1\n    ' + viewportMeta)
+      } else if (/name=["']ad\.size["']/i.test(refactoredHtml)) {
+        refactoredHtml = refactoredHtml.replace(/(<meta[^>]*ad\.size[^>]*>)/i, '$1\n    ' + viewportMeta)
+      }
+      metaChanges.push('Added viewport meta (maximum-scale=1.0, user-scalable=0)')
+    }
+  }
+
+  if (metaChanges.length > 0) {
     appliedFixes.push({
-      id: 'add-ad-size-meta',
-      description: 'Added ad.size meta tag',
-      details: 'Added: ' + adSizeMeta
+      id: 'add-meta-tags',
+      description: 'Added required meta tags',
+      details: metaChanges
     })
   }
 
