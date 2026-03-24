@@ -45,6 +45,8 @@ export const useRefactorStore = create(
 
       // Ad platform type: 'ixr' | 'focus' (determines which rule set to apply)
       adPlatform: null,
+      // Ad type: 'cp' | 'mr' (user-selected, determines CP vs MR rules)
+      adType: null,
 
       // Ad metadata from import
       adMeta: {
@@ -61,7 +63,7 @@ export const useRefactorStore = create(
       // --- Actions ---
 
       // Initialize workspace from an import result
-      startRefactor: async (importResult, originalFile, platform) => {
+      startRefactor: async (importResult, originalFile, platform, adType) => {
         const files = {}
         const originalFiles = {}
         const assetFiles = {}
@@ -205,9 +207,11 @@ export const useRefactorStore = create(
         const hasJquery = allFilePaths.some(p => p.includes('jquery'))
         const hasAutoScroll = allFilePaths.some(p => p.includes('autoscroll'))
         const hasScrollerCss = allFilePaths.some(p => p.includes('scroller.css'))
-        const templateBrand = (summary.brand || '').toLowerCase()
+        // Use user-selected adType if available, otherwise fall back to template detection
+        const resolvedAdType = (importResult.adType || summary.brand || '').toLowerCase()
         const hasISI = summary.features?.includes('isi') || false
-        const isMrOrInt = templateBrand === 'mr' || templateBrand === 'int'
+        const isMrOrInt = resolvedAdType === 'mr' || resolvedAdType === 'int'
+        const isCp = resolvedAdType === 'cp'
 
         // Helper to fetch a device library file from public/device-libs/
         const fetchLib = async (libPath) => {
@@ -234,8 +238,8 @@ export const useRefactorStore = create(
           }
         }
 
-        // scroller.css — required for MR and INT ISI ads
-        if (isMrOrInt && hasISI && !hasScrollerCss) {
+        // scroller.css — required for ALL ISI ads (CP, MR, INT)
+        if (hasISI && !hasScrollerCss) {
           const scrollerContent = await fetchLib('css/scroller.css')
           if (scrollerContent) {
             files[rootPrefix + 'css/scroller.css'] = scrollerContent
@@ -270,8 +274,8 @@ export const useRefactorStore = create(
             }
           }
 
-          // Add scroller.css link tag for MR/INT ISI ads if not referenced
-          if (isMrOrInt && hasISI && !hasScrollerCss && !htmlLower.includes('scroller.css')) {
+          // Add scroller.css link tag for ALL ISI ads if not referenced
+          if (hasISI && !hasScrollerCss && !htmlLower.includes('scroller.css')) {
             const headClose = html.indexOf('</head>')
             if (headClose !== -1) {
               html = html.slice(0, headClose) +
@@ -287,14 +291,16 @@ export const useRefactorStore = create(
         const activeFile = files['index.html'] ? 'index.html'
           : Object.keys(files)[0] || null
 
-        // Store platform in importResult so exportUtils can access it
+        // Store platform and adType in importResult so exportUtils can access it
         importResult.adPlatform = platform || 'ixr'
+        importResult.adType = adType || importResult.adType || null
 
         set({
           isActive: true,
           currentStep: 'overview',
           importResult,
           adPlatform: platform || 'ixr',
+          adType: adType || importResult.adType || null,
           files,
           originalFiles,
           assetFiles,
@@ -312,6 +318,7 @@ export const useRefactorStore = create(
         currentStep: 'overview',
         importResult: null,
         adPlatform: null,
+        adType: null,
         files: {},
         originalFiles: {},
         assetFiles: {},

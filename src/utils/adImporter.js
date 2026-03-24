@@ -15,6 +15,7 @@ import { generateScrollerJS } from './templateGenerator'
  */
 export async function parseAdZip(zipFile, options) {
   var platform = (options && options.platform) || 'ixr'
+  var adType = (options && options.adType) || null // 'cp' | 'mr' | null (auto-detect)
 
   const result = {
     success: false,
@@ -29,6 +30,8 @@ export async function parseAdZip(zipFile, options) {
     gwdConversions: [],
     // Ad platform type (determines which rule set to apply)
     adPlatform: platform,
+    // Ad type: 'cp' | 'mr' — user-selected, skips template guessing
+    adType: adType,
     // Structured list of fixes needed/applied
     fixes: [],
     // Things that need manual rebuild (can't be auto-fixed)
@@ -250,11 +253,30 @@ export async function parseAdZip(zipFile, options) {
     const features = detectFeatures(html, adJs, mainJs, otherJsCode)
     result.features = features  // Store for use in manual tasks and refactoring
 
-    // 3. Determine template type (prioritize CP and MR)
-    result.template = detectTemplate(dimensions, features)
-    if (!result.template) {
-      result.warnings.push({ level: 'warn', message: 'Could not match to known template, using closest match' })
-      result.template = getBestGuessTemplate(dimensions, features)
+    // 3. Determine template type
+    // If user selected an ad type (cp/mr), use that directly instead of guessing
+    if (adType) {
+      var adTypeDimensions = adType === 'cp' ? { width: 1080, height: 1733 } : { width: 300, height: 250 }
+      // Use detected dimensions if available, otherwise use type defaults
+      var templateDims = dimensions || adTypeDimensions
+      result.template = detectTemplate(templateDims, features)
+      if (!result.template) {
+        result.template = getBestGuessTemplate(templateDims, features)
+      }
+      // Override the brand to match user selection
+      if (result.template) {
+        result.template = Object.assign({}, result.template, { brand: adType })
+      }
+      // Set dimensions from user selection if not detected
+      if (!dimensions) {
+        result.config.dimensions = adTypeDimensions
+      }
+    } else {
+      result.template = detectTemplate(dimensions, features)
+      if (!result.template) {
+        result.warnings.push({ level: 'warn', message: 'Could not match to known template, using closest match' })
+        result.template = getBestGuessTemplate(dimensions, features)
+      }
     }
 
     // 4. Extract clickTags from ad.js (handles multiple patterns)
@@ -297,8 +319,10 @@ export async function parseAdZip(zipFile, options) {
     }
 
     // 10. Check for animation wrapper (CP only - MR ads don't need it)
+    // Use user-selected adType if available, otherwise fall back to template brand
+    var resolvedBrand = adType || result.template?.brand
     const hasOnWallboardIdle = html.includes('onWallboardIdleSlideDisplay') || adJs.includes('onWallboardIdleSlideDisplay')
-    if (animationLibrary && !hasOnWallboardIdle && result.template?.brand === 'cp') {
+    if (animationLibrary && !hasOnWallboardIdle && resolvedBrand === 'cp') {
       result.fixes.push({
         id: 'animation-wrapper',
         category: 'Device Compatibility',
@@ -2858,9 +2882,11 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
 
   // 5. Add onWallboardIdleSlideDisplay wrapper for CP ads only (MR ads don't need it)
   // Check dimensions directly as fallback if template not detected
-  var isCPAd = result.template?.brand === 'cp' ||
+  // Use user-selected adType if available, otherwise detect from template/dimensions
+  var isCPAd = result.adType === 'cp' ||
+               (!result.adType && (result.template?.brand === 'cp' ||
                (result.config?.dimensions?.width === 1080 && result.config?.dimensions?.height === 1733) ||
-               /width[=:]\s*1080.*height[=:]\s*1733|1080px.*1733px/i.test(refactoredHtml)
+               /width[=:]\s*1080.*height[=:]\s*1733|1080px.*1733px/i.test(refactoredHtml)))
 
   if (isCPAd) {
     var hasWrapper = refactoredHtml.includes('onWallboardIdleSlideDisplay') ||
