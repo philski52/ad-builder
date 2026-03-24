@@ -367,6 +367,7 @@ function buildIXRDeviceSpecs(width, height) {
 function buildImportantNotes(adPlatform) {
   let s = '## Important Notes\n'
   s += '- **MINIMAL CHANGES ONLY.** The goal is the least amount of code necessary to make this ad device-ready. Do not refactor for style, do not reorganize, do not "improve" working code. Every imported ad is different and chaotic — that\'s expected. Preserve the original structure wherever possible.\n'
+  s += '- **PRESERVE GLOBAL CSS.** When removing dead code (polite loaders, loader spinners, GWD runtime, etc.), check if the same inline `<style>` block or CSS file contains global layout rules the ad depends on (e.g. `div { position: absolute; }`, `* { margin: 0; }`, `.banner { display: none; }`). Move these rules to `style.css` before deleting the dead code.\n'
 
   if (adPlatform === 'ixr') {
     s += '- Test all changes against Chrome 69 compatibility.\n'
@@ -614,6 +615,13 @@ function buildWarnings(features, animAnalysis, adMeta, config, files) {
   if (features?.hasLocalGsap3File && features?.hasGreenSock) {
     warnings.push(
       '**Unused Local GSAP 3.x File:** This ad loads a local GSAP 3.x file (e.g. `gsap3.8.0.js`) alongside TweenMax 2.0.1. If the animation code only uses TweenMax syntax (`TweenMax.to()`, `new TimelineMax()`), the GSAP 3.x file is unused dead weight. Remove the GSAP 3.x `<script>` tag and its file. If the code ALSO uses `gsap.to()` syntax, convert those calls to TweenMax first, then remove GSAP 3.x.'
+    )
+  }
+
+  // Lottie/Bodymovin animation — test on device
+  if (features?.hasLottie) {
+    warnings.push(
+      '**Lottie/Bodymovin Animation:** This ad uses Lottie (`lottie.loadAnimation()`) to render vector animation from JSON data. Lottie **may** work on IXR devices if it uses the SVG renderer (the default), but this must be tested on an actual device. If the animation fails to render:\n> 1. Export key frames as PNG images from the Lottie JSON (use lottiefiles.com or After Effects)\n> 2. Rebuild the animation using TweenMax 2.0.1 with positioned `<div>`/`<img>` elements\n> 3. Remove `lottie.min.js` and the embedded JSON animation data'
     )
   }
 
@@ -1064,6 +1072,7 @@ function buildFeatureSummary(features) {
 
   if (features.hasWebpackBundle) activeIssues.push('**Webpack-bundled ad** — Minified bundle with ES6+ module system. Cannot be auto-converted. Requires complete rebuild')
   if (features.hasCreatopy) activeIssues.push('**Creatopy ad** — Proprietary creatopyEmbed runtime with styled-components. Cannot be auto-converted. Requires complete rebuild')
+  if (features.hasLottie) activeIssues.push('**Lottie/Bodymovin animation** — Vector animation rendered from JSON data. May work on devices if using SVG renderer — must test on actual device. If it fails, rebuild as TweenMax DOM animation')
   if (features.hasCreateJS) activeIssues.push('**CreateJS / Adobe Animate CC** — Canvas-based rendering. Cannot be auto-converted. Requires complete rebuild as DOM-based ad with TweenMax animations')
   if (features.hasEnabler) activeIssues.push('**Enabler.js detected** — Google Ad Manager SDK, requires complete rebuild')
   if (features.hasCDNScripts) activeIssues.push('**CDN scripts (' + (features.cdnScriptCount || '?') + ')** — Devices are offline, scripts must be local')
@@ -1345,8 +1354,9 @@ function buildModalPoliteGuide(features) {
     section += '### What to Do\n'
     section += '1. **Remove the loader entirely:**\n'
     section += '   - Delete `politeInit()`, `onLoaderReady()`, and any `checkInitLoadScripts()` functions\n'
-    section += '   - Delete the loading spinner/animation element\n'
-    section += '   - Remove `document.createElement("script")` dynamic loading\n\n'
+    section += '   - Delete the loading spinner/animation element (e.g. `#loader` div)\n'
+    section += '   - Remove `document.createElement("script")` dynamic loading\n'
+    section += '   - **IMPORTANT:** If the inline `<style>` block that contains the loader CSS ALSO contains global layout rules (e.g. `div { position: absolute; }`, `* { margin: 0; padding: 0; }`, `.banner { display: none; }`), you MUST preserve those global rules. Move them to `style.css` before deleting the inline block.\n\n'
     section += '2. **Load scripts directly in `<head>`:**\n'
     section += '   - Download all CDN scripts locally\n'
     section += '   - Add `<script src="js/filename.js"></script>` tags directly in the `<head>`\n'

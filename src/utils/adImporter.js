@@ -601,6 +601,8 @@ function detectFeatures(html, adJs, mainJs, otherJsCode) {
                       /<script[^>]*src=["'][^"']*_[a-f0-9]{8,}\.js["']/i.test(html),
     // Creatopy ad builder (creatopyEmbed runtime — can't be auto-converted)
     hasCreatopy: /creatopyEmbed|window\.creatopyEmbed/i.test(allCode),
+    // Lottie / Bodymovin animation (vector animation from JSON data — test on device)
+    hasLottie: /lottie\.loadAnimation|bodymovin\.loadAnimation|lottie\.min\.js|bodymovin/i.test(allCode),
     // CSS transitions used for animation (class-swap driven, works on devices — preserved as-is)
     hasCSSTransitions: /transition-property\s*:|transition\s*:(?![^;]*none)/i.test(html),
     // Inline @font-face with CDN src URLs (won't work offline)
