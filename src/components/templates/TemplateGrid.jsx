@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { templates, TEMPLATE_CATEGORIES, BRAND_PREFIXES } from '../../templates'
 import TemplateCard from './TemplateCard'
 import ImportAdButton from '../import/ImportAdButton'
+import TemplateWizard from './TemplateWizard'
 import { useClickZoneToolStore } from '../../stores/clickZoneToolStore'
 
 function TemplateGrid() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [brandFilter, setBrandFilter] = useState('all')
+  const [showWizard, setShowWizard] = useState(false)
 
   const filteredTemplates = templates.filter((template) => {
     if (categoryFilter !== 'all' && template.category !== categoryFilter) return false
@@ -26,6 +28,15 @@ function TemplateGrid() {
             <p className="text-gray-600 mt-1">Select a template or import an existing ad</p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowWizard(true)}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Help Me Choose
+            </button>
             <button
               onClick={activateClickZoneTool}
               className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 flex items-center gap-2 transition-colors"
@@ -84,6 +95,8 @@ function TemplateGrid() {
           </div>
         )}
       </div>
+
+      {showWizard && <TemplateWizard onClose={() => setShowWizard(false)} />}
     </div>
   )
 }
