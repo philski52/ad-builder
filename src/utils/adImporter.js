@@ -10,7 +10,7 @@ import { generateScrollerJS } from './templateGenerator'
  * Parse an uploaded ad ZIP file and extract all configuration
  * @param {File} zipFile - The uploaded ZIP file
  * @param {Object} options - Import options
- * @param {string} options.platform - Ad platform: 'ixr' | 'focus'
+ * @param {string} options.platform - Ad platform: 'ixr' | 'focus' | 'ipro'
  * @returns {Promise<ImportResult>}
  */
 export async function parseAdZip(zipFile, options) {
