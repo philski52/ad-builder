@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { templates, TEMPLATE_CATEGORIES, BRAND_PREFIXES } from '../../templates'
 import TemplateCard from './TemplateCard'
+import ImportAdButton from '../import/ImportAdButton'
 
 function TemplateGrid() {
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -16,8 +17,13 @@ function TemplateGrid() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-8 py-6">
-        <h1 className="text-2xl font-bold text-gray-900">Ad Builder</h1>
-        <p className="text-gray-600 mt-1">Select a template to start creating your ad</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Ad Builder</h1>
+            <p className="text-gray-600 mt-1">Select a template or import an existing ad</p>
+          </div>
+          <ImportAdButton />
+        </div>
       </header>
 
       {/* Filters */}

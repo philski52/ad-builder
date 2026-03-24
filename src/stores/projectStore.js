@@ -25,6 +25,9 @@ export const useProjectStore = create(
         collapseButtonImage: null
       },
 
+      // Unmapped assets from import (available for manual assignment)
+      unmappedAssets: [],
+
       // Configuration values
       config: {
         clickTag1: 'https://education.patientpoint.com/failsafe-page/',
@@ -302,6 +305,83 @@ export const useProjectStore = create(
           isiContent: projectData.isiContent || get().isiContent,
           animations: projectData.animations || [],
           assets: projectData.assets,
+          isPreviewDirty: true
+        })
+      },
+
+      // Import from ad analysis result (parsed ZIP file)
+      importFromAnalysis: (analysisResult) => {
+        if (!analysisResult.template) {
+          console.error('No template detected in import')
+          return
+        }
+
+        const state = get()
+        const template = analysisResult.template
+
+        // Build assets object from analysis
+        const assets = {
+          background: analysisResult.assets.background || null,
+          frames: analysisResult.assets.frames || [],
+          isiImage: analysisResult.assets.isiImage || null,
+          video: analysisResult.assets.video || null,
+          expandButtonImage: analysisResult.assets.expandButtonImage || null,
+          collapseButtonImage: analysisResult.assets.collapseButtonImage || null
+        }
+
+        // Store unmapped assets for manual assignment
+        const unmappedAssets = (analysisResult.allAssets || [])
+          .filter(a => !a.mapped)
+          .map(a => ({
+            filename: a.filename,
+            dataUrl: a.dataUrl,
+            type: a.type,
+            isSvg: a.isSvg,
+            suggestedSlot: a.suggestedSlot,
+            scene: a.scene,
+            element: a.element,
+            context: a.context
+          }))
+
+        // Merge config - start with defaults from template, then overlay extracted values
+        const isiDefaults = template.brand === 'cp' ? { isiWidth: 1080, isiHeight: 540, isiTop: 1193, isiLeft: 0 }
+          : template.brand === 'mr' ? { isiWidth: 300, isiHeight: 100, isiTop: 150, isiLeft: 0 }
+          : { isiWidth: 1080, isiHeight: 540, isiTop: 1193, isiLeft: 0 }
+
+        const hasISI = template.features?.includes('isi')
+
+        const config = {
+          ...state.config,
+          dimensions: analysisResult.config.dimensions || template.dimensions,
+          ...(hasISI ? isiDefaults : {}),
+          // Overlay all extracted config values
+          ...Object.fromEntries(
+            Object.entries(analysisResult.config).filter(([_, v]) => v !== null && v !== undefined)
+          )
+        }
+
+        // Generate project name from template
+        const projectName = `imported-${template.id}-${Date.now()}`
+
+        // Import extracted animations with proper IDs and preserve original selector
+        const animations = (analysisResult.animations || []).map((anim, i) => ({
+          id: `anim-imported-${i}-${Date.now()}`,
+          target: anim.target,
+          originalSelector: anim.originalSelector,
+          type: anim.type || 'in',
+          effects: anim.effects || {},
+          duration: anim.duration || 0.5,
+          startTime: anim.startTime || 0,
+          easing: anim.easing || 'Power1.easeOut'
+        }))
+
+        set({
+          currentTemplate: template,
+          projectName,
+          assets,
+          unmappedAssets,
+          config,
+          animations,
           isPreviewDirty: true
         })
       }

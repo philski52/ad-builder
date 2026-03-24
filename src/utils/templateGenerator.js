@@ -21,8 +21,9 @@ export function generateTemplateCode(template, config, assets, animations = []) 
 
   if (hasISI) {
     result.scrollerCss = generateScrollerCSS(config)
-    result.mainJs = generateMainJS(config)
   }
+  // Always include scroller.js — 95% of ads need it, avoids conflicts with imported main.js
+  result.scrollerJs = generateScrollerJS(config)
 
   if (hasExpandable) {
     result.expandableCss = generateExpandableCSS(config)
@@ -237,7 +238,7 @@ export function generateHTML(template, config, assets, animations) {
         ${buttonsHTML}
     </div>
     <script src="script/ad.js"><\/script>
-    ${hasISI ? `<script src="script/main.js"><\/script>` : ''}
+    <script src="script/scroller.js"><\/script>
     ${hasExpandable ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"><\/script>
     <script src="script/expandCollapse.js"><\/script>` : ''}
     ${animationScript ? `<script>${animationScript}<\/script>` : ''}
@@ -521,9 +522,9 @@ export function generateClicksCSS(config) {
 }
 
 /**
- * Generate main.js for ISI scroller functionality
+ * Generate scroller.js for ISI scroller functionality
  */
-export function generateMainJS(config) {
+export function generateScrollerJS(config) {
   const scrollStep = config.scrollStep || 5
   const autoScrollSpeed = config.autoScrollSpeed || 80
   return `var _loadedImages = 0,

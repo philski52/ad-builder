@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
 import { hasFeature } from '../../templates'
-import { generateHTML, generateCSS, generateScrollerCSS, generateMainJS, generateAdJS, generateClicksCSS, generateExpandableCSS, generateExpandCollapseJS } from '../../utils/templateGenerator'
+import { generateHTML, generateCSS, generateScrollerCSS, generateScrollerJS, generateAdJS, generateClicksCSS, generateExpandableCSS, generateExpandCollapseJS } from '../../utils/templateGenerator'
 
 function BrowserPreview({ dimensions, scale, children }) {
   const frameWidth = dimensions.width * scale + 2
@@ -97,7 +97,7 @@ function PreviewIframe() {
     let html = generateHTML(currentTemplate, config, assets, animations)
     const css = generateCSS(config)
     const scrollerCss = hasISI ? generateScrollerCSS(config) : ''
-    const mainJs = hasISI ? generateMainJS(config) : ''
+    const scrollerJs = generateScrollerJS(config)
     const adJs = generateAdJS(config)
     const clicksCss = generateClicksCSS(config)
     const expandableCss = hasExpandable ? generateExpandableCSS(config) : ''
@@ -110,10 +110,8 @@ function PreviewIframe() {
     // Inline ad.js
     html = html.replace('<script src="script/ad.js"></script>', `<script>${adJs}</script>`)
 
-    // Inline main.js for ISI templates
-    if (hasISI) {
-      html = html.replace('<script src="script/main.js"></script>', `<script>${mainJs}</script>`)
-    }
+    // Inline scroller.js
+    html = html.replace('<script src="script/scroller.js"></script>', `<script>${scrollerJs}</script>`)
 
     // Inline expandCollapse.js for expandable templates
     if (hasExpandable) {

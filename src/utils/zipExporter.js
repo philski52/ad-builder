@@ -2,7 +2,7 @@
 // Creates downloadable ad package
 
 import JSZip from 'jszip'
-import { generateTemplateCode, generateMainJS } from './templateGenerator'
+import { generateTemplateCode, generateScrollerJS } from './templateGenerator'
 import { hasFeature } from '../templates'
 
 /**
@@ -58,8 +58,8 @@ export async function exportAdZip(template, config, assets, projectName, animati
   const scriptFolder = zip.folder('script')
   scriptFolder.file('ad.js', code.js)
 
-  if (code.mainJs) {
-    scriptFolder.file('main.js', code.mainJs)
+  if (code.scrollerJs) {
+    scriptFolder.file('scroller.js', code.scrollerJs)
   }
 
   if (code.expandCollapseJs) {
