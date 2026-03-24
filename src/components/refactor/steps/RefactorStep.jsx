@@ -10,6 +10,7 @@ function RefactorStep() {
   const refactorSummary = getRefactorSummary(importResult)
   const appliedFixes = importResult.appliedFixes || []
   const fixes = importResult.fixes || []
+  const isCpAd = importResult.adType === 'cp' || importResult.template?.brand === 'cp'
 
   return (
     <div className="max-w-4xl mx-auto p-8 space-y-6">
@@ -31,11 +32,13 @@ function RefactorStep() {
 
       {/* Compatibility Status */}
       <div className="grid grid-cols-2 gap-4">
-        <StatusCard
-          label="onWallboardIdleSlideDisplay"
-          description={refactorSummary.hasAnimationWrapper ? 'Wrapper present for device compatibility' : 'Not detected — may need manual addition'}
-          ok={refactorSummary.hasAnimationWrapper}
-        />
+        {isCpAd && (
+          <StatusCard
+            label="onWallboardIdleSlideDisplay"
+            description={refactorSummary.hasAnimationWrapper ? 'Wrapper present for device compatibility' : 'Not detected — may need manual addition'}
+            ok={refactorSummary.hasAnimationWrapper}
+          />
+        )}
         <StatusCard
           label="appHost Integration"
           description={refactorSummary.hasAppHost ? 'Device API integration present' : 'Not detected (optional)'}
