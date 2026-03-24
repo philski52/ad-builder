@@ -259,7 +259,7 @@ function buildIXRDeviceSpecs(width, height) {
   s += '### appHost Integration (Required)\n'
   s += 'All ads must include device communication:\n'
   s += '```javascript\n'
-  s += 'var appHost = window.appHost = window.top.AppHost ? new window.top.AppHost(this) : null;\n'
+  s += 'var appHost = window.appHost = new window.top.AppHost(this);\n'
   s += '```\n\n'
 
   s += '### Click Handlers (Required Pattern)\n'
@@ -312,13 +312,38 @@ function buildIXRDeviceSpecs(width, height) {
   s += '```\n'
   s += 'Do NOT use native CSS scrollbars, iScroll, OverlayScrollbars, mCustomScrollbar, or any scroll library. The standard scroller JS handles everything.\n\n'
 
-  s += '### CP Ads (1080x1733) — Animation Wrapper\n'
-  s += 'CP ads must wrap animation code in:\n'
+  s += '### CP Ads (1080x1733) — Animation Pattern (REQUIRED)\n'
+  s += 'CP ads MUST use this exact animation structure. Do NOT use `$(document).ready()` for animation on CP ads:\n'
   s += '```javascript\n'
+  s += 'var firstPlay = true;\n'
+  s += 'var tl = new TimelineMax({});\n\n'
+  s += 'function createAnimation() {\n'
+  s += '    // ALL animation tweens go here\n'
+  s += '    // Frame 1\n'
+  s += '    tl.to("#f1", 0.5, { autoAlpha: 1 }, 0);       // 0s\n'
+  s += '    tl.to("#f1", 0.5, { autoAlpha: 0 }, 3);       // 3s\n'
+  s += '    // Frame 2\n'
+  s += '    tl.to("#f2", 0.5, { autoAlpha: 1 }, 3.5);     // 3.5s\n'
+  s += '    tl.to("#f2", 0.5, { autoAlpha: 0 }, 6.5);     // 6.5s\n'
+  s += '}\n\n'
   s += 'function onWallboardIdleSlideDisplay() {\n'
-  s += '  // All animation code here — this is called by the device when the ad should start\n'
+  s += '    // Reset ISI scroll position (comment out if no ISI)\n'
+  s += '    document.getElementById("innerMostDiv").scrollTop = 0;\n'
+  s += '    if (firstPlay === true) {\n'
+  s += '        createAnimation(false);\n'
+  s += '        tl.play();\n'
+  s += '        firstPlay = false;\n'
+  s += '    } else {\n'
+  s += '        tl.seek(0);\n'
+  s += '        tl.play();\n'
+  s += '    }\n'
+  s += '}\n\n'
+  s += '// Fallback for browser testing (device calls onWallboardIdleSlideDisplay automatically)\n'
+  s += 'if (typeof appHost === \'undefined\') {\n'
+  s += '    onWallboardIdleSlideDisplay();\n'
   s += '}\n'
-  s += '```\n\n'
+  s += '```\n'
+  s += '**Key rules:** `tl` and `firstPlay` are declared globally. `createAnimation()` builds the timeline once. `onWallboardIdleSlideDisplay()` is called by the device each time the ad should play — first time it creates + plays, subsequent times it seeks to 0 and replays. The `appHost === \'undefined\'` check fires the animation in browser for testing.\n\n'
 
   s += '### Console Silencing (Required for Production)\n'
   s += '```javascript\n'
@@ -1073,6 +1098,8 @@ function buildFeatureSummary(features) {
   if (features.hasWebpackBundle) activeIssues.push('**Webpack-bundled ad** — Minified bundle with ES6+ module system. Cannot be auto-converted. Requires complete rebuild')
   if (features.hasCreatopy) activeIssues.push('**Creatopy ad** — Proprietary creatopyEmbed runtime with styled-components. Cannot be auto-converted. Requires complete rebuild')
   if (features.hasLottie) activeIssues.push('**Lottie/Bodymovin animation** — Vector animation rendered from JSON data. May work on devices if using SVG renderer — must test on actual device. If it fails, rebuild as TweenMax DOM animation')
+  if (features.hasBannerify) activeIssues.push('**Bannerify framework** — CSS class-based animation (bnfy-enter/bnfy-exit). Remove Bannerify and rebuild animations with TweenMax if needed')
+  if (features.hasTinyScrollbar) activeIssues.push('**jQuery TinyScrollbar** — Scroll library for ISI. Must replace with standard ISI scroller')
   if (features.hasCreateJS) activeIssues.push('**CreateJS / Adobe Animate CC** — Canvas-based rendering. Cannot be auto-converted. Requires complete rebuild as DOM-based ad with TweenMax animations')
   if (features.hasEnabler) activeIssues.push('**Enabler.js detected** — Google Ad Manager SDK, requires complete rebuild')
   if (features.hasCDNScripts) activeIssues.push('**CDN scripts (' + (features.cdnScriptCount || '?') + ')** — Devices are offline, scripts must be local')

@@ -409,7 +409,7 @@ function detectFeatures(html, adJs, mainJs, otherJsCode) {
                           /Important\s+Safety\s+Information/i.test(html)
   // Check if using a scroll library (indicates ISI needs conversion)
   // Also catches custom Scroller class (Havas/Beyfortus bespoke scroll widget)
-  var hasScrollLibrary = /jquery\.scrollbar|OverlayScrollbars|iScroll|perfect-scrollbar|enscroll/i.test(html) ||
+  var hasScrollLibrary = /jquery\.scrollbar|jquery\.tinyscrollbar|OverlayScrollbars|iScroll|perfect-scrollbar|enscroll|SimpleBar/i.test(html) ||
                           /new\s+Scroller\s*\(|Scroller\.prototype|function\s+Scroller\s*\(/i.test(allCode)
 
   // Detect Enabler.js (Google Ad Manager / DoubleClick Studio)
@@ -588,7 +588,7 @@ function detectFeatures(html, adJs, mainJs, otherJsCode) {
     // data-exit click pattern (used by some ad platforms)
     hasDataExitClicks: /data-exit/i.test(html),
     // CreateJS / Adobe Animate CC (canvas-based ads — completely different rendering paradigm)
-    hasCreateJS: /createjs/i.test(allCode) || /AdobeAn/i.test(allCode) || (/<canvas\s/i.test(html) && /createjs|cjs\./i.test(allCode)),
+    hasCreateJS: /createjs|easeljs|tweenjs\.min/i.test(allCode) || /AdobeAn/i.test(allCode) || (/<canvas\s/i.test(html) && /createjs|cjs\.|easeljs|tweenjs/i.test(allCode)),
     hasCanvas: /<canvas\s/i.test(html),
     // Local GSAP 3.x file loaded (not CDN) — may be unused if TweenMax also present
     hasLocalGsap3File: /<script[^>]*src=["'][^"']*gsap[_.]?3[^"']*\.js["']/i.test(html),
@@ -603,6 +603,10 @@ function detectFeatures(html, adJs, mainJs, otherJsCode) {
     hasCreatopy: /creatopyEmbed|window\.creatopyEmbed/i.test(allCode),
     // Lottie / Bodymovin animation (vector animation from JSON data — test on device)
     hasLottie: /lottie\.loadAnimation|bodymovin\.loadAnimation|lottie\.min\.js|bodymovin/i.test(allCode),
+    // Bannerify ad framework (CSS class-based animation — bnfy-enter/bnfy-exit)
+    hasBannerify: /bannerify|bnfy-enter|bnfy-exit/i.test(allCode),
+    // TinyScrollbar (jQuery plugin for ISI scrolling)
+    hasTinyScrollbar: /tinyscrollbar/i.test(allCode),
     // CSS transitions used for animation (class-swap driven, works on devices — preserved as-is)
     hasCSSTransitions: /transition-property\s*:|transition\s*:(?![^;]*none)/i.test(html),
     // Inline @font-face with CDN src URLs (won't work offline)
@@ -4380,7 +4384,7 @@ if (typeof window.top.AppHost === 'undefined') {
  */
 function addAppHostIntegration(html) {
   var appHostScript = '<script type="text/javascript">\n' +
-    '    var appHost = window.appHost = window.top.AppHost ? new window.top.AppHost(this) : null;\n' +
+    '    var appHost = window.appHost = new window.top.AppHost(this);\n' +
     '  </script>'
 
   // Insert after <head> or at start of <body>
