@@ -90,7 +90,8 @@ export const useRefactorStore = create(
             files[paths.html || (rootPrefix + 'index.html')] = importResult.refactoredFiles.html
           }
           if (importResult.refactoredFiles.adJs) {
-            files[paths.adJs || (rootPrefix + 'js/ad.js')] = importResult.refactoredFiles.adJs
+            const adJsFolder = importResult.jsFolder || 'js'
+            files[paths.adJs || (rootPrefix + adJsFolder + '/ad.js')] = importResult.refactoredFiles.adJs
           }
           if (importResult.refactoredFiles.mainJs) {
             files[paths.mainJs || (rootPrefix + 'js/main.js')] = importResult.refactoredFiles.mainJs
@@ -98,10 +99,18 @@ export const useRefactorStore = create(
           if (importResult.refactoredFiles.scrollerJs) {
             files[rootPrefix + 'script/scroller.js'] = importResult.refactoredFiles.scrollerJs
           }
-          // Additional JS files
+          // Additional JS files (refactored other JS) — use original paths from filePaths.otherFiles
           if (importResult.refactoredFiles.additionalJs) {
+            const otherPaths = importResult.filePaths?.otherFiles || {}
+            // Build reverse map: filename → fullPath
+            const nameToPath = {}
+            for (const [fullPath, filename] of Object.entries(otherPaths)) {
+              nameToPath[filename] = fullPath
+            }
             for (const [name, content] of Object.entries(importResult.refactoredFiles.additionalJs)) {
-              files[rootPrefix + `js/${name}`] = content
+              // Use original ZIP path if available, otherwise fall back to js/ folder
+              const jsFolder = importResult.jsFolder || 'js'
+              files[nameToPath[name] || (rootPrefix + jsFolder + '/' + name)] = content
             }
           }
         }
@@ -139,8 +148,14 @@ export const useRefactorStore = create(
             originalFiles[paths.mainJs || (rootPrefix + 'js/main.js')] = importResult.originalFiles.mainJs
           }
           if (importResult.originalFiles.additionalJs) {
+            const origOtherPaths = importResult.filePaths?.otherFiles || {}
+            const origNameToPath = {}
+            for (const [fullPath, filename] of Object.entries(origOtherPaths)) {
+              origNameToPath[filename] = fullPath
+            }
             for (const [name, content] of Object.entries(importResult.originalFiles.additionalJs)) {
-              originalFiles[rootPrefix + `js/${name}`] = content
+              const origJsFolder = importResult.jsFolder || 'js'
+              originalFiles[origNameToPath[name] || (rootPrefix + origJsFolder + '/' + name)] = content
             }
           }
         }

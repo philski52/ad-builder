@@ -617,6 +617,34 @@ function buildWarnings(features, animAnalysis, adMeta, config, files) {
     )
   }
 
+  // Creatopy ad — requires complete rebuild
+  if (features?.hasCreatopy) {
+    warnings.push(
+      '**Creatopy Ad (Critical):** This ad was built with Creatopy (formerly Bannersnack). It uses a proprietary runtime (`creatopyEmbed`) with styled-components (hashed CSS classes), a custom event-driven animation engine, and `bsOpenURL` click handling. **The entire ad must be rebuilt from scratch.** Extract the frame images from the `media/` folder, create standard HTML, rebuild animations with TweenMax 2.0.1, and add standard ad.js click handlers.'
+    )
+  }
+
+  // Webpack/bundled ad — requires complete rebuild
+  if (features?.hasWebpackBundle) {
+    warnings.push(
+      '**Webpack-Bundled Ad (Critical):** This ad was built with a JavaScript bundler (webpack/Vite/Rollup). The code is minified, tree-shaken, and uses ES6+ module syntax (`__webpack_modules__`, arrow functions as module wrappers). **The bundled code CANNOT be auto-converted to ES5 or have GSAP calls extracted.** The ad must be completely rebuilt:\n> 1. Extract the visual design intent from the assets and HTML structure\n> 2. Rebuild the ad as a standard HTML/CSS/JS structure with ES5 code\n> 3. Replace GSAP CDN with local `tweenmax_2.0.1_min.js`\n> 4. Recreate animations using TweenMax 2.0.1 syntax\n> 5. Add standard `ad.js` with click handlers and appHost integration'
+    )
+  }
+
+  // GWD delayed init — Enabler.isInitialized / DOMContentLoaded wrapping GWD init
+  if (features?.hasGWDDelayedInit) {
+    warnings.push(
+      '**GWD Delayed Initialization:** This ad uses a GWD/Enabler initialization pattern (`Enabler.isInitialized()`, `Enabler.addEventListener(studio.events.StudioEvent.INIT, ...)`, or `DOMContentLoaded` wrapping GWD setup). The Enabler runtime has been removed, so this init logic is dead code. Remove the Enabler init check and let the ad render immediately — either on `$(document).ready()` or (for CP ads) inside `onWallboardIdleSlideDisplay()`.'
+    )
+  }
+
+  // Inline @font-face with CDN URLs — won't work offline
+  if (features?.hasInlineCDNFontFace) {
+    warnings.push(
+      '**Inline @font-face with CDN URLs:** This ad has `@font-face` declarations with `src: url(https://fonts.gstatic.com/...)` or other CDN URLs. These fonts will NOT load on offline devices. You must either:\n> 1. **Download the font files** (`.woff2`/`.woff`) locally and update the `src` URLs to local paths\n> 2. **Remove the `@font-face` blocks** if the font files cannot be obtained, and convert text elements that use these fonts to images'
+    )
+  }
+
   // JS-injected ISI — entire ISI mechanism must be replaced
   if (features?.hasJSInjectedISI) {
     warnings.push(
@@ -915,6 +943,15 @@ function buildAnimationContext(animAnalysis, sceneStructure, features, config) {
     section += '\n'
   }
 
+  // CSS transitions note
+  if (features?.hasCSSTransitions) {
+    section += '### CSS Transitions (Preserved)\n'
+    section += 'This ad uses CSS `transition` properties for animation (e.g. `transition-property: transform, opacity`). '
+    section += 'CSS transitions **work on IXR devices** and have been preserved as-is. '
+    section += 'The dev will decide whether to keep the CSS transition approach or rebuild with TweenMax. '
+    section += 'If the transitions are working correctly, leave them alone.\n\n'
+  }
+
   // Config timing
   if (config?.frameDuration || config?.frameDelay) {
     section += '### Timing Configuration\n'
@@ -1023,7 +1060,10 @@ function buildFeatureSummary(features) {
   if (features.hasImagesLoaded) activeFeatures.push('imagesLoaded preloader library')
   if (features.hasDataExitClicks) activeFeatures.push('data-exit click handling pattern')
   if (features.hasCanvas) activeFeatures.push('Canvas element')
+  if (features.hasCSSTransitions) activeFeatures.push('CSS transitions (preserved — works on devices)')
 
+  if (features.hasWebpackBundle) activeIssues.push('**Webpack-bundled ad** — Minified bundle with ES6+ module system. Cannot be auto-converted. Requires complete rebuild')
+  if (features.hasCreatopy) activeIssues.push('**Creatopy ad** — Proprietary creatopyEmbed runtime with styled-components. Cannot be auto-converted. Requires complete rebuild')
   if (features.hasCreateJS) activeIssues.push('**CreateJS / Adobe Animate CC** — Canvas-based rendering. Cannot be auto-converted. Requires complete rebuild as DOM-based ad with TweenMax animations')
   if (features.hasEnabler) activeIssues.push('**Enabler.js detected** — Google Ad Manager SDK, requires complete rebuild')
   if (features.hasCDNScripts) activeIssues.push('**CDN scripts (' + (features.cdnScriptCount || '?') + ')** — Devices are offline, scripts must be local')
@@ -1047,6 +1087,8 @@ function buildFeatureSummary(features) {
   if (features.hasCustomScrollerClass) activeIssues.push('**Custom Scroller class** — Bespoke scroll widget (Havas/Beyfortus pattern), must replace with standard ISI scroller')
   if (features.hasTrackingPixels) activeIssues.push('**Tracking/impression pixels** — Network requests to ad servers fail offline. Auto-removed if found in HTML; check JS for dynamic pixel creation')
   if (features.hasJSInjectedISI) activeIssues.push('**JS-injected ISI (ISIText())** — ISI content is a JavaScript string injected via innerHTML, not in the HTML. The entire ISI mechanism (isiText.js, isi.js, scroll framework) must be removed and replaced with a standard ISI image scroller')
+  if (features.hasInlineCDNFontFace) activeIssues.push('**Inline @font-face with CDN URLs** — Font files loaded from fonts.gstatic.com or other CDNs. Must download locally or remove and convert text to images')
+  if (features.hasGWDDelayedInit) activeIssues.push('**GWD/Enabler delayed init** — Enabler.isInitialized or DOMContentLoaded wrapping GWD setup. Remove dead init logic, let ad render directly')
 
   if (activeFeatures.length === 0 && activeIssues.length === 0) return ''
 

@@ -337,9 +337,19 @@ export async function parseAdZip(zipFile, options) {
 
     // 14. === APPLY REFACTORING ===
     // Generate refactored versions of the files with all auto-fixes applied
-    const refactored = applyRefactoring(result, html, adJs, mainJs)
+    const refactored = applyRefactoring(result, html, adJs, mainJs, result.originalFiles.otherFiles)
     result.refactoredFiles = refactored.files
     result.appliedFixes = refactored.appliedFixes
+
+    // Store original versions of other JS files that were refactored (for diff view)
+    if (refactored.files.additionalJs) {
+      result.originalFiles.additionalJs = {}
+      for (var fname in refactored.files.additionalJs) {
+        if (result.originalFiles.otherFiles[fname]) {
+          result.originalFiles.additionalJs[fname] = result.originalFiles.otherFiles[fname]
+        }
+      }
+    }
 
     result.success = true
 
@@ -586,6 +596,17 @@ function detectFeatures(html, adJs, mainJs, otherJsCode) {
     detectedFonts: detectedFonts,
     hasCustomFonts: detectedFonts.length > 0,
     hasLocalFontFiles: hasLocalFontFiles,
+    // Webpack/bundled ad (hashed filenames, __webpack_modules__ — can't be auto-converted)
+    hasWebpackBundle: /__webpack_modules__|__webpack_require__|webpackJsonp/i.test(allCode) ||
+                      /<script[^>]*src=["'][^"']*_[a-f0-9]{8,}\.js["']/i.test(html),
+    // Creatopy ad builder (creatopyEmbed runtime — can't be auto-converted)
+    hasCreatopy: /creatopyEmbed|window\.creatopyEmbed/i.test(allCode),
+    // CSS transitions used for animation (class-swap driven, works on devices — preserved as-is)
+    hasCSSTransitions: /transition-property\s*:|transition\s*:(?![^;]*none)/i.test(html),
+    // Inline @font-face with CDN src URLs (won't work offline)
+    hasInlineCDNFontFace: /@font-face[\s\S]*?src\s*:\s*url\s*\(\s*https?:\/\//i.test(html),
+    // GWD onload/delay loading pattern (DOMContentLoaded, window.onload wrapping init)
+    hasGWDDelayedInit: /DOMContentLoaded.*gwd|gwd.*DOMContentLoaded|window\.onload.*gwd|Enabler\.isInitialized|Enabler\.addEventListener.*INIT/i.test(allCode),
     // JS-injected ISI (ISIText() function that returns HTML string — common agency pattern)
     // These ads store entire ISI content as a JS string in isiText.js and inject via innerHTML
     hasJSInjectedISI: hasJSInjectedISI
@@ -1844,6 +1865,28 @@ function buildManualTasksList(result, html, adJs) {
     })
   }
 
+  // Check for Creatopy ads (require complete rebuild)
+  if (result.features?.hasCreatopy) {
+    tasks.push({
+      id: 'rebuild-creatopy',
+      priority: 'critical',
+      title: 'MANUAL REBUILD REQUIRED: Creatopy Ad',
+      description: 'This ad was built with Creatopy (formerly Bannersnack). It uses a proprietary animation runtime (creatopyEmbed) with styled-components, custom event system, and setTimeout-based slide orchestration. The code cannot be auto-converted.',
+      action: '1) Extract visual assets from the media/ folder (background, frame images), 2) Create standard HTML with positioned elements, 3) Rebuild animations using TweenMax 2.0.1, 4) Replace bsOpenURL/clickTag with standard ad.js click handlers, 5) Add appHost integration'
+    })
+  }
+
+  // Check for webpack-bundled ads (require complete rebuild)
+  if (result.features?.hasWebpackBundle) {
+    tasks.push({
+      id: 'rebuild-webpack',
+      priority: 'critical',
+      title: 'MANUAL REBUILD REQUIRED: Webpack-Bundled Ad',
+      description: 'This ad was built with a JavaScript bundler (webpack/Vite/Rollup). The bundled code uses ES6+ module syntax and cannot be auto-converted to ES5 or have GSAP calls safely extracted. The ad must be completely rebuilt as a standard HTML/CSS/JS structure.',
+      action: '1) Extract visual assets and design intent from the bundled ad, 2) Create standard HTML with positioned elements, 3) Write ES5 animation code using TweenMax 2.0.1, 4) Replace CDN scripts with local files, 5) Add standard ad.js with click handlers and appHost integration'
+    })
+  }
+
   // Check for CDN scripts (won't work offline)
   if (result.features?.hasCDNScripts) {
     tasks.push({
@@ -2725,11 +2768,37 @@ export function removeScrollImplementations(html) {
  * Apply all refactoring fixes to the original files
  * Returns refactored versions ready for export
  */
-function applyRefactoring(result, html, adJs, mainJs) {
+function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
   const appliedFixes = []
   let refactoredHtml = html
   let refactoredAdJs = adJs
   let refactoredMainJs = mainJs
+  var refactoredOtherJs = {} // Will hold refactored versions of other JS files
+
+  // Detect which JS folder convention the ad uses (js/, script/, scripts/, or root)
+  // Used when generating ad.js for ads that don't have one
+  var jsFolder = 'js' // default
+  var existingScriptSrc = html.match(/<script[^>]*src=["']([^"']*\/)[^"']+\.js["']/i)
+  if (existingScriptSrc) {
+    var folderPath = existingScriptSrc[1]
+    // Strip leading ./ or root prefix
+    folderPath = folderPath.replace(/^\.\//, '')
+    // Get just the folder name (e.g. "script/" from "7758/script/")
+    var parts = folderPath.split('/')
+    var lastFolder = parts[parts.length - 2] || parts[parts.length - 1]
+    if (lastFolder && /^(js|script|scripts|lib)$/i.test(lastFolder)) {
+      jsFolder = lastFolder
+    }
+  }
+  // Also check the original ad.js path
+  if (result.filePaths?.adJs) {
+    var adJsFolder = result.filePaths.adJs.split('/').slice(-2, -1)[0]
+    if (adJsFolder && /^(js|script|scripts|lib)$/i.test(adJsFolder)) {
+      jsFolder = adJsFolder
+    }
+  }
+  // Store for use by other functions
+  result.jsFolder = jsFolder
 
   // 1. Add ad.size meta tag if missing
   var hasAdSizeMeta = /name=["']ad\.size["']/i.test(refactoredHtml)
@@ -2820,20 +2889,27 @@ function applyRefactoring(result, html, adJs, mainJs) {
     })
   }
 
-  // 7. Convert ES6 to ES5 for better device compatibility (ad.js)
-  const es6Converted = convertES6ToES5(refactoredAdJs)
-  if (es6Converted.changed) {
-    refactoredAdJs = es6Converted.js
-    appliedFixes.push({
-      id: 'convert-es6-adjs',
-      description: 'Converted ES6 syntax to ES5 in ad.js',
-      details: es6Converted.changes
-    })
+  // Helper: detect if JS content is a bundled/runtime file (unsafe to auto-convert)
+  var isUnsafeBundledCode = function(content) {
+    return /__webpack_modules__|__webpack_require__|webpackJsonp|creatopyEmbed/i.test(content)
   }
 
-  // 7b. Convert ES6 to ES5 in main.js as well
-  if (refactoredMainJs) {
-    const mainJsEs6Converted = convertES6ToES5(refactoredMainJs)
+  // 7. Convert ES6 to ES5 for better device compatibility (ad.js)
+  if (!isUnsafeBundledCode(refactoredAdJs)) {
+    var es6Converted = convertES6ToES5(refactoredAdJs)
+    if (es6Converted.changed) {
+      refactoredAdJs = es6Converted.js
+      appliedFixes.push({
+        id: 'convert-es6-adjs',
+        description: 'Converted ES6 syntax to ES5 in ad.js',
+        details: es6Converted.changes
+      })
+    }
+  }
+
+  // 7b. Convert ES6 to ES5 in main.js as well (skip webpack bundles)
+  if (refactoredMainJs && !isUnsafeBundledCode(refactoredMainJs)) {
+    var mainJsEs6Converted = convertES6ToES5(refactoredMainJs)
     if (mainJsEs6Converted.changed) {
       refactoredMainJs = mainJsEs6Converted.js
       appliedFixes.push({
@@ -2846,7 +2922,8 @@ function applyRefactoring(result, html, adJs, mainJs) {
 
   // 7c. Convert window.open(clickTagX) in main.js to device-compatible calls
   if (refactoredMainJs && /window\.open\s*\(\s*(?:window\.)?(clickTag\w*)/i.test(refactoredMainJs)) {
-    var mainJsWindowOpenConverted = convertWindowOpenInJS(refactoredMainJs)
+    // Pass adJs so we can skip injecting helper functions if ad.js already has them
+    var mainJsWindowOpenConverted = convertWindowOpenInJS(refactoredMainJs, refactoredAdJs)
     if (mainJsWindowOpenConverted.changed) {
       refactoredMainJs = mainJsWindowOpenConverted.js
       appliedFixes.push({
@@ -2854,6 +2931,75 @@ function applyRefactoring(result, html, adJs, mainJs) {
         description: 'Converted window.open() calls in main.js to device-compatible handlers',
         details: mainJsWindowOpenConverted.changes
       })
+    }
+  }
+
+  // 7d. Convert GSAP 3.x to TweenMax 2.0.1 in ad.js (skip webpack bundles)
+  var gsap3Converted = !isUnsafeBundledCode(refactoredAdJs) ? convertGsap3ToTweenMax(refactoredAdJs) : { js: refactoredAdJs, changed: false, changes: [] }
+  if (gsap3Converted.changed) {
+    refactoredAdJs = gsap3Converted.js
+    appliedFixes.push({
+      id: 'convert-gsap3-adjs',
+      description: 'Converted GSAP 3.x to TweenMax 2.0.1 in ad.js',
+      details: gsap3Converted.changes
+    })
+  }
+
+  // 7e. Convert GSAP 3.x to TweenMax 2.0.1 in main.js (skip webpack bundles)
+  if (refactoredMainJs && !isUnsafeBundledCode(refactoredMainJs)) {
+    var mainJsGsap3Converted = convertGsap3ToTweenMax(refactoredMainJs)
+    if (mainJsGsap3Converted.changed) {
+      refactoredMainJs = mainJsGsap3Converted.js
+      appliedFixes.push({
+        id: 'convert-gsap3-mainjs',
+        description: 'Converted GSAP 3.x to TweenMax 2.0.1 in main.js',
+        details: mainJsGsap3Converted.changes
+      })
+    }
+  }
+
+  // 7f. Process ALL other JS files (ES6→ES5, GSAP 3→TweenMax)
+  // Files like animation.js, creative.js, timeline.js often contain animation code
+  var libraryPattern = /jquery|tweenmax|tweenlite|timelinemax|timelinelite|gsap[\._-]|createjs|iscroll|webcomponents|enabler|imagesloaded/i
+  if (otherFiles) {
+    for (var otherFilename in otherFiles) {
+      if (!/\.js$/i.test(otherFilename)) continue
+      if (libraryPattern.test(otherFilename)) continue
+      // Skip .min.js files — they're vendor libraries
+      if (/\.min\.js$/i.test(otherFilename)) continue
+
+      var otherContent = otherFiles[otherFilename]
+
+      // Skip webpack bundles — unsafe to auto-convert
+      if (isUnsafeBundledCode(otherContent)) continue
+
+      var otherChanged = false
+      var otherChanges = []
+
+      // ES6 → ES5
+      var otherEs6 = convertES6ToES5(otherContent)
+      if (otherEs6.changed) {
+        otherContent = otherEs6.js
+        otherChanged = true
+        otherChanges = otherChanges.concat(otherEs6.changes)
+      }
+
+      // GSAP 3 → TweenMax
+      var otherGsap = convertGsap3ToTweenMax(otherContent)
+      if (otherGsap.changed) {
+        otherContent = otherGsap.js
+        otherChanged = true
+        otherChanges = otherChanges.concat(otherGsap.changes)
+      }
+
+      if (otherChanged) {
+        refactoredOtherJs[otherFilename] = otherContent
+        appliedFixes.push({
+          id: 'convert-other-js-' + otherFilename.replace(/[^a-z0-9]/gi, '-'),
+          description: 'Converted ES6/GSAP 3.x in ' + otherFilename,
+          details: otherChanges
+        })
+      }
     }
   }
 
@@ -2865,6 +3011,44 @@ function applyRefactoring(result, html, adJs, mainJs) {
       id: 'convert-inline-es6',
       description: 'Converted ES6 syntax in inline scripts',
       details: inlineEs6Converted.changes
+    })
+  }
+
+  // 8b. Convert window.open(clickTag) in inline <script> blocks
+  // Single-file ads often have window.open() in inline scripts, not in external JS files
+  var inlineWindowOpenPattern = /<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/gi
+  var inlineWindowOpenChanges = []
+  refactoredHtml = refactoredHtml.replace(inlineWindowOpenPattern, function(fullMatch, scriptContent) {
+    // Build clickTag lookup from this script block AND from any earlier script blocks
+    var localClickTagLookup = {}
+    var tagVarPattern = /var\s+(clickTag\w*)\s*=\s*["']([^"']+)["']/gi
+    var tv
+    // Scan the full HTML for clickTag variables (they may be in a different script block)
+    var allTagVars = /var\s+(clickTag\w*)\s*=\s*["']([^"']+)["']/gi
+    while ((tv = allTagVars.exec(refactoredHtml)) !== null) {
+      localClickTagLookup[tv[1]] = tv[2].replace(/&amp;/g, '&')
+    }
+
+    // Replace window.open(clickTag) or window.open(window.clickTag) with appHost handler
+    var windowOpenInScript = /window\.open\s*\(\s*(?:window\.)?(clickTag\w*)\s*(?:,\s*["'][^"']*["']\s*)?\)/gi
+    if (!windowOpenInScript.test(scriptContent)) return fullMatch
+
+    windowOpenInScript.lastIndex = 0
+    var newScript = scriptContent.replace(windowOpenInScript, function(m, varName) {
+      var url = localClickTagLookup[varName] || ''
+      var isPdf = /\.pdf(\b|$)/i.test(url)
+      var handler = isPdf ? 'openExternalPDF' : 'openExternalLinkFull'
+      inlineWindowOpenChanges.push('Converted inline window.open(' + varName + ') to ' + handler)
+      return handler + '(e, ' + varName + ')'
+    })
+
+    return fullMatch.replace(scriptContent, newScript)
+  })
+  if (inlineWindowOpenChanges.length > 0) {
+    appliedFixes.push({
+      id: 'convert-inline-window-open',
+      description: 'Converted window.open() calls in inline scripts to device-compatible handlers',
+      details: inlineWindowOpenChanges
     })
   }
 
@@ -2999,7 +3183,7 @@ function applyRefactoring(result, html, adJs, mainJs) {
 
   // 17.5. Convert <a href="https://..."> links to device-compatible click handlers
   if (result.features?.hasAnchorHrefLinks) {
-    var anchorConverted = convertAnchorHrefLinks(refactoredHtml, refactoredAdJs)
+    var anchorConverted = convertAnchorHrefLinks(refactoredHtml, refactoredAdJs, jsFolder)
     if (anchorConverted.changed) {
       refactoredHtml = anchorConverted.html
       refactoredAdJs = anchorConverted.adJs
@@ -3070,23 +3254,27 @@ function applyRefactoring(result, html, adJs, mainJs) {
       refactoredAdJs = adJsLines.join('\n')
 
       // Add ad.js script tag to HTML if not present
+      var adJsScriptPath = jsFolder + '/ad.js'
       if (!/src=["'][^"']*ad\.js["']/i.test(refactoredHtml)) {
         // Insert after jQuery script tag, or before </body>
         var jqueryTagEnd = refactoredHtml.search(/<script[^>]*jquery[^>]*><\/script>/i)
         if (jqueryTagEnd !== -1) {
           var insertAfter = refactoredHtml.indexOf('</script>', jqueryTagEnd) + '</script>'.length
           refactoredHtml = refactoredHtml.slice(0, insertAfter) +
-            '\n    <script type="text/javascript" src="js/ad.js"></script>' +
+            '\n    <script type="text/javascript" src="' + adJsScriptPath + '"></script>' +
             refactoredHtml.slice(insertAfter)
         } else {
           var bodyClose = refactoredHtml.lastIndexOf('</body>')
           if (bodyClose !== -1) {
             refactoredHtml = refactoredHtml.slice(0, bodyClose) +
-              '<script type="text/javascript" src="js/ad.js"></script>\n' +
+              '<script type="text/javascript" src="' + adJsScriptPath + '"></script>\n' +
               refactoredHtml.slice(bodyClose)
           }
         }
       }
+
+      // Store the generated ad.js path so the store knows where to put it
+      result.filePaths.generatedAdJsFolder = jsFolder
 
       appliedFixes.push({
         id: 'generate-gwd-adjs',
@@ -3105,6 +3293,19 @@ function applyRefactoring(result, html, adJs, mainJs) {
         id: 'remove-google-fonts',
         description: 'Removed Google Fonts CDN links (devices are offline)',
         details: fontsRemoved.changes
+      })
+    }
+  }
+
+  // 19b. Remove inline @font-face blocks with CDN src URLs (won't load offline)
+  if (result.features?.hasInlineCDNFontFace) {
+    var fontFaceRemoved = removeInlineCDNFontFace(refactoredHtml)
+    if (fontFaceRemoved.changed) {
+      refactoredHtml = fontFaceRemoved.html
+      appliedFixes.push({
+        id: 'remove-inline-cdn-fontface',
+        description: 'Removed inline @font-face blocks with CDN URLs (devices are offline)',
+        details: fontFaceRemoved.changes
       })
     }
   }
@@ -3147,7 +3348,8 @@ function applyRefactoring(result, html, adJs, mainJs) {
       html: refactoredHtml,
       adJs: refactoredAdJs,
       mainJs: refactoredMainJs,
-      scrollerJs: generateScrollerJS({})
+      scrollerJs: generateScrollerJS({}),
+      additionalJs: Object.keys(refactoredOtherJs).length > 0 ? refactoredOtherJs : null
     },
     appliedFixes: appliedFixes
   }
@@ -3195,6 +3397,38 @@ function removeGoogleFontsCDN(html) {
   result = result.replace(webFontConfigPattern, function(match) {
     changes.push('Removed WebFontConfig script block')
     return ''
+  })
+
+  return {
+    html: result,
+    changed: changes.length > 0,
+    changes: changes
+  }
+}
+
+/**
+ * Remove inline @font-face blocks whose src references CDN URLs (fonts.gstatic.com, etc.)
+ * These won't load on offline devices. Keeps @font-face blocks with local src paths.
+ */
+function removeInlineCDNFontFace(html) {
+  var changes = []
+  var result = html
+
+  // Match @font-face blocks that contain CDN URLs in their src
+  // Uses a two-pass approach: find @font-face blocks, then check if src has CDN URL
+  var fontFacePattern = /@font-face\s*\{[^}]*\}/gi
+  result = result.replace(fontFacePattern, function(match) {
+    // Only remove if src contains a CDN URL
+    if (/src\s*:\s*url\s*\(\s*["']?https?:\/\//i.test(match)) {
+      // Extract font-family name for logging
+      var familyMatch = match.match(/font-family\s*:\s*["']?([^"';]+)/i)
+      var fontName = familyMatch ? familyMatch[1].trim() : 'unknown'
+      var weightMatch = match.match(/font-weight\s*:\s*(\d+)/i)
+      var weight = weightMatch ? weightMatch[1] : ''
+      changes.push('Removed @font-face for ' + fontName + (weight ? ' (' + weight + ')' : '') + ' — CDN src URL')
+      return '/* @font-face removed — CDN font URL not available offline */'
+    }
+    return match // Keep local @font-face blocks
   })
 
   return {
@@ -3946,7 +4180,8 @@ function convertExitsHandlers(html, adJs) {
  * Strips href, assigns IDs if needed, generates ad.js click handlers
  * Skips: javascript: hrefs, anchor (#) links, mailto:, already-converted elements
  */
-function convertAnchorHrefLinks(html, adJs) {
+function convertAnchorHrefLinks(html, adJs, jsFolder) {
+  jsFolder = jsFolder || 'js'
   var changes = []
   var resultHtml = html
   var resultAdJs = adJs || ''
@@ -4046,18 +4281,19 @@ function convertAnchorHrefLinks(html, adJs) {
     resultAdJs = resultAdJs + handlersJs
 
     // Add ad.js script tag to HTML if not present
+    var adJsPath = jsFolder + '/ad.js'
     if (!/src=["'][^"']*ad\.js["']/i.test(resultHtml)) {
       var jqueryTagEnd = resultHtml.search(/<script[^>]*jquery[^>]*><\/script>/i)
       if (jqueryTagEnd !== -1) {
         var insertAfter = resultHtml.indexOf('</script>', jqueryTagEnd) + '</script>'.length
         resultHtml = resultHtml.slice(0, insertAfter) +
-          '\n    <script type="text/javascript" src="js/ad.js"></script>' +
+          '\n    <script type="text/javascript" src="' + adJsPath + '"></script>' +
           resultHtml.slice(insertAfter)
       } else {
         var bodyClose = resultHtml.lastIndexOf('</body>')
         if (bodyClose !== -1) {
           resultHtml = resultHtml.slice(0, bodyClose) +
-            '<script type="text/javascript" src="js/ad.js"></script>\n' +
+            '<script type="text/javascript" src="' + adJsPath + '"></script>\n' +
             resultHtml.slice(bodyClose)
         }
       }
@@ -4172,66 +4408,20 @@ function addConsoleSilencing(html) {
 }
 
 /**
- * Convert window.open() calls to device-compatible appHost methods
+ * Detect window.open() calls that may need conversion.
+ * NOTE: Does NOT inject handler functions into HTML. Handler functions belong in ad.js only.
+ * The dedicated converters (convertJavascriptVoidClicks, convertExitsHandlers,
+ * convertAnchorHrefLinks, convertInlineOnclickHandlers) handle the actual conversions
+ * and add handlers to ad.js.
  */
 function convertClickHandlers(html, adJs) {
   var changes = []
   var resultHtml = html
   var resultAdJs = adJs || ''
 
-  // Pattern for window.open in inline onclick/href handlers
-  // e.g., href="javascript:void(window.open(cta))"
-  var inlineWindowOpenPattern = /href=["']javascript:void\(window\.open\((\w+)\)\)["']/gi
-  if (inlineWindowOpenPattern.test(resultHtml)) {
-    changes.push('Converted inline window.open() to use appHost')
-    // We can't easily convert these inline - flag for manual review instead
-  }
-
-  // Pattern for window.open in script tags
-  // e.g., window.open(clickTag,"_blank")
-  var windowOpenPattern = /window\.open\s*\(\s*(\w+)\s*(?:,\s*["'][^"']*["'])?\s*\)/g
-
-  // Check inline scripts
-  var scriptPattern = /<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/gi
-  resultHtml = resultHtml.replace(scriptPattern, function(match, content) {
-    var newContent = content
-
-    // Replace window.open with openExternalLink
-    if (windowOpenPattern.test(newContent)) {
-      changes.push('Found window.open() calls - adding device-compatible handlers')
-      // Reset regex
-      windowOpenPattern.lastIndex = 0
-    }
-
-    return match
-  })
-
-  // Add device-compatible click handler functions if not present
-  var hasDeviceHandlers = /openExternalLinkFull|appHost\.openExternalLinkFull/i.test(resultHtml + resultAdJs)
-  if (!hasDeviceHandlers && (resultHtml.includes('window.open') || resultAdJs.includes('window.open'))) {
-    var deviceHandlerScript = '\n<script type="text/javascript">\n' +
-      '// Device-compatible click handlers\n' +
-      'function openExternalLinkFull(e, clickTag) {\n' +
-      '    if (typeof appHost !== \'undefined\') {\n' +
-      '        appHost.openExternalLinkFull(clickTag);\n' +
-      '    } else {\n' +
-      '        window.open(clickTag);\n' +
-      '    }\n' +
-      '}\n' +
-      'function openExternalPDF(e, pdfUrl) {\n' +
-      '    if (typeof appHost !== \'undefined\') {\n' +
-      '        appHost.requestPDFView(pdfUrl);\n' +
-      '    } else {\n' +
-      '        window.open(pdfUrl);\n' +
-      '    }\n' +
-      '}\n' +
-      '</script>\n'
-
-    // Add before </body>
-    if (resultHtml.includes('</body>')) {
-      resultHtml = resultHtml.replace('</body>', deviceHandlerScript + '</body>')
-      changes.push('Added device-compatible click handler functions (openExternalLinkFull, openExternalPDF)')
-    }
+  // Detect unconverted window.open() patterns for informational logging
+  if (/href=["']javascript:void\(window\.open/i.test(resultHtml)) {
+    changes.push('Found window.open() calls - adding device-compatible handlers')
   }
 
   return {
@@ -5802,7 +5992,7 @@ function removeTrackingPixels(html) {
  * Handles: window.open(clickTag1), window.open(clickTag2), etc.
  * Replaces with openExternalPDF or openExternalLinkFull based on URL detection
  */
-function convertWindowOpenInJS(js) {
+function convertWindowOpenInJS(js, adJs) {
   var changes = []
   var result = js
 
@@ -5815,8 +6005,8 @@ function convertWindowOpenInJS(js) {
   }
 
   // Replace window.open(clickTagX) with the appropriate appHost call
-  // Matches: window.open(clickTag1), window.open(clickTag2), etc.
-  var openPattern = /window\.open\s*\(\s*(clickTag\w*)\s*(?:,\s*["'][^"']*["']\s*)?\)/gi
+  // Matches: window.open(clickTag1), window.open(window.clickTag1), etc.
+  var openPattern = /window\.open\s*\(\s*(?:window\.)?(clickTag\w*)\s*(?:,\s*["'][^"']*["']\s*)?\)/gi
   result = result.replace(openPattern, function(match, varName) {
     var url = clickTagLookup[varName] || ''
     var isPdf = /\.pdf(\b|$)/i.test(url)
@@ -5830,8 +6020,10 @@ function convertWindowOpenInJS(js) {
     }
   })
 
-  // If we made conversions, ensure the helper functions are defined
-  if (changes.length > 0 && !/function\s+openExternalLinkFull/i.test(result)) {
+  // If we made conversions, ensure the helper functions are defined somewhere
+  // Skip if ad.js already has them (ad.js is the canonical location for handlers)
+  var adJsHasHandlers = adJs && /function\s+openExternalLinkFull/i.test(adJs)
+  if (changes.length > 0 && !/function\s+openExternalLinkFull/i.test(result) && !adJsHasHandlers) {
     var helpers = '\n// Device-compatible click handler functions (auto-injected)\n'
     helpers += 'function openExternalLinkFull(e, clickTag) {\n'
     helpers += '    if (typeof appHost !== \'undefined\') {\n'
