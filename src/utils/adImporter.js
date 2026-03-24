@@ -3379,6 +3379,19 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     })
   }
 
+  // 23. Remove overflow:hidden from html/body for CP ads (allows browser scrolling for testing)
+  if (isCPAd) {
+    var overflowResult = removeBodyOverflowHidden(refactoredHtml)
+    if (overflowResult.changed) {
+      refactoredHtml = overflowResult.html
+      appliedFixes.push({
+        id: 'remove-body-overflow-hidden',
+        description: 'Removed overflow:hidden from html/body for browser testing (CP ad)',
+        details: overflowResult.changes
+      })
+    }
+  }
+
   return {
     files: {
       html: refactoredHtml,
@@ -3388,6 +3401,62 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
       additionalJs: Object.keys(refactoredOtherJs).length > 0 ? refactoredOtherJs : null
     },
     appliedFixes: appliedFixes
+  }
+}
+
+/**
+ * Remove overflow:hidden from html and body CSS rules (CP ads only)
+ * This allows devs to scroll in the browser to see the full 1080x1733 ad during testing.
+ * The device handles display — it doesn't need overflow:hidden on the root elements.
+ */
+function removeBodyOverflowHidden(html) {
+  var changes = []
+  var result = html
+
+  // Match overflow:hidden (or overflow: hidden) in rules that target html or body
+  // Strategy: find overflow:hidden inside style blocks and remove it from html/body rules
+  // We use a two-pass approach:
+  // 1. Remove overflow:hidden property from html,body / html / body selectors
+  // 2. Also handle combined rules like html,body{...overflow:hidden...}
+
+  // Pattern: remove overflow:hidden or overflow: hidden from inline styles and style blocks
+  // Only target html and body selectors, not other elements
+  var styleBlockPattern = /<style[^>]*>([\s\S]*?)<\/style>/gi
+  result = result.replace(styleBlockPattern, function(fullMatch, cssContent) {
+    var newCss = cssContent
+
+    // Remove overflow:hidden from rules targeting html, body, or html,body
+    // Matches: html,body{...overflow:hidden...} or body{...overflow:hidden...} etc.
+    var rulePattern = /((?:html|body)(?:\s*,\s*(?:html|body))*\s*\{)([^}]*)(})/gi
+    newCss = newCss.replace(rulePattern, function(ruleMatch, selector, props, closeBrace) {
+      if (/overflow\s*:\s*hidden/i.test(props)) {
+        var newProps = props.replace(/\s*overflow\s*:\s*hidden\s*;?/gi, '')
+        changes.push('Removed overflow:hidden from ' + selector.trim().replace(/\s*\{/, ''))
+        return selector + newProps + closeBrace
+      }
+      return ruleMatch
+    })
+
+    return fullMatch.replace(cssContent, newCss)
+  })
+
+  // Also handle inline style on body tag: <body style="overflow:hidden">
+  result = result.replace(/<body([^>]*?)style=["']([^"']*)["']/gi, function(match, before, style) {
+    if (/overflow\s*:\s*hidden/i.test(style)) {
+      var newStyle = style.replace(/\s*overflow\s*:\s*hidden\s*;?/gi, '').trim()
+      changes.push('Removed overflow:hidden from body inline style')
+      if (newStyle) {
+        return '<body' + before + 'style="' + newStyle + '"'
+      }
+      return '<body' + before
+    }
+    return match
+  })
+
+  return {
+    html: result,
+    changed: changes.length > 0,
+    changes: changes
   }
 }
 
