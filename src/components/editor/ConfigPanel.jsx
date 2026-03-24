@@ -10,6 +10,7 @@ function ConfigPanel() {
 
   const hasISI = hasFeature(currentTemplate, 'isi')
   const hasVideo = hasFeature(currentTemplate, 'video')
+  const hasBackground = hasFeature(currentTemplate, 'background')
   const hasExpandable = hasFeature(currentTemplate, 'expandable')
   const hasAnimation = hasFeature(currentTemplate, 'animation')
 
@@ -360,8 +361,86 @@ function ConfigPanel() {
         </div>
       )}
 
+      {/* Video Position (bg-video-embedded) */}
+      {hasVideo && hasBackground && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-gray-700 border-b pb-2">Video Position & Size</h3>
+          <p className="text-xs text-gray-500">Position the video container on the background image.</p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Top</label>
+              <input
+                type="number"
+                value={config.videoTop ?? 134}
+                onChange={(e) => updateConfig('videoTop', parseInt(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Left</label>
+              <input
+                type="number"
+                value={config.videoLeft ?? 65}
+                onChange={(e) => updateConfig('videoLeft', parseInt(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Width</label>
+              <input
+                type="number"
+                value={config.videoWidth ?? 876}
+                onChange={(e) => updateConfig('videoWidth', parseInt(e.target.value) || 876)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Height</label>
+              <input
+                type="number"
+                value={config.videoHeight ?? 492}
+                onChange={(e) => updateConfig('videoHeight', parseInt(e.target.value) || 492)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <h3 className="text-sm font-medium text-gray-700 border-b pb-2 mt-4">Play Button Position</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Top</label>
+              <input
+                type="number"
+                value={config.playBtnTop ?? 432}
+                onChange={(e) => updateConfig('playBtnTop', parseInt(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Left</label>
+              <input
+                type="number"
+                value={config.playBtnLeft ?? 419}
+                onChange={(e) => updateConfig('playBtnLeft', parseInt(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Width</label>
+              <input
+                type="number"
+                value={config.playBtnWidth ?? 146}
+                onChange={(e) => updateConfig('playBtnWidth', parseInt(e.target.value) || 146)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Video Settings */}
-      {hasVideo && (
+      {hasVideo && !hasBackground && (
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-gray-700 border-b pb-2">Video Settings</h3>
 

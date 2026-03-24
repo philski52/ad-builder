@@ -21,6 +21,8 @@ export const useProjectStore = create(
         frames: [],
         isiImage: null,
         video: null,
+        thumbnail: null,
+        playButton: null,
         expandButtonImage: null,
         collapseButtonImage: null
       },
@@ -96,6 +98,12 @@ export const useProjectStore = create(
         collapseButtonBorderRadius: 50,
         // Video settings
         videoHeight: 562,
+        videoTop: 134,
+        videoLeft: 65,
+        videoWidth: 876,
+        playBtnTop: 432,
+        playBtnLeft: 419,
+        playBtnWidth: 146,
         showVideoControls: true,
         // Button settings (for INT templates)
         buttonCount: 2,
@@ -109,7 +117,7 @@ export const useProjectStore = create(
         // linkType: 'url' | 'pdf' | 'mod'
         // jobId: string (for mod fallback URL)
         clickZones: [
-          { id: 'clickTag1', url: 'https://education.patientpoint.com/failsafe-page/', linkType: 'url', jobId: '', top: 0, left: 0, width: 1080, height: 1193, inISI: false }
+          { id: 'clickTag1', url: 'https://education.patientpoint.com/failsafe-page/', linkType: 'url', jobId: '', top: 0, left: 0, width: 1080, height: 1193, inISI: false, pauseVideo: false }
         ],
         // Global job ID for mod fallback (used if zone doesn't specify one)
         jobId: ''
@@ -156,7 +164,8 @@ export const useProjectStore = create(
                 left: 0,
                 width: template.dimensions.width,
                 height: hasISI ? isiDefaults.isiTop : template.dimensions.height,
-                inISI: false
+                inISI: false,
+                pauseVideo: false
               }
             ],
             jobId: ''
@@ -171,7 +180,9 @@ export const useProjectStore = create(
           background: null,
           frames: [],
           isiImage: null,
-          video: null
+          video: null,
+          thumbnail: null,
+          playButton: null
         },
         animations: [],
         isPreviewDirty: false
@@ -325,6 +336,8 @@ export const useProjectStore = create(
           frames: analysisResult.assets.frames || [],
           isiImage: analysisResult.assets.isiImage || null,
           video: analysisResult.assets.video || null,
+          thumbnail: analysisResult.assets.thumbnail || null,
+          playButton: analysisResult.assets.playButton || null,
           expandButtonImage: analysisResult.assets.expandButtonImage || null,
           collapseButtonImage: analysisResult.assets.collapseButtonImage || null
         }

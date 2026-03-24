@@ -10,7 +10,9 @@ export function generateTemplateCode(template, config, assets, animations = []) 
   const hasISI = hasFeature(template, 'isi')
   const hasExpandable = hasFeature(template, 'expandable') && config.expandableEnabled
   const hasVideo = hasFeature(template, 'video')
-  const hasButtons = hasVideo && config.buttonCount > 0
+  const hasBackground = hasFeature(template, 'background')
+  const hasBgVideo = hasVideo && hasBackground
+  const hasButtons = hasVideo && !hasBgVideo && config.buttonCount > 0
   const hasClickZones = (config.clickZones || []).length > 0
 
   const result = {
@@ -36,6 +38,11 @@ export function generateTemplateCode(template, config, assets, animations = []) 
 
   if (hasClickZones) {
     result.clicksCss = generateClicksCSS(config)
+  }
+
+  if (hasBgVideo) {
+    result.bgVideoCss = generateBgVideoCSS(config)
+    result.bgVideoJs = generateBgVideoJS(config)
   }
 
   return result
@@ -146,7 +153,9 @@ export function generateHTML(template, config, assets, animations) {
   const hasExpandable = hasFeature(template, 'expandable') && config.expandableEnabled
   const hasAnimation = hasFeature(template, 'animation')
   const hasVideo = hasFeature(template, 'video')
-  const buttonCount = config.buttonCount || 0
+  const hasBackground = hasFeature(template, 'background')
+  const hasBgVideo = hasVideo && hasBackground
+  const buttonCount = hasBgVideo ? 0 : (config.buttonCount || 0)
   const clickZones = config.clickZones || []
   const anims = animations || []
 
@@ -217,10 +226,17 @@ export function generateHTML(template, config, assets, animations) {
     ${hasClickZones ? `<link rel="stylesheet" href="css/clicks.css">` : ''}
     ${hasVideo && buttonCount > 0 ? `<link rel="stylesheet" href="css/buttons.css">` : ''}
     ${hasExpandable ? `<link rel="stylesheet" href="css/expandable.css">` : ''}
+    ${hasBgVideo ? `<link rel="stylesheet" href="css/bg-video.css">` : ''}
 </head>
 <body>
     <div id="container">
-        ${!hasVideo ? `<img class="background" src="assets/background.png" width="${config.dimensions.width}px">` : ''}
+        ${!hasVideo || hasBgVideo ? `<img class="background" src="assets/background.png" width="${config.dimensions.width}px">` : ''}
+        ${hasBgVideo ? `<img id="video_pause_btn" src="assets/play-button.png" onclick="showVid();" />
+        <div id="video-container">
+            <video id="videoId" poster="assets/thumbnail.png">
+                <source src="assets/video.mp4" type="video/mp4">
+            </video>
+        </div>` : ''}
         ${framesHTML}
         ${containerZonesHTML}
         ${expandableHTML}
@@ -234,9 +250,10 @@ export function generateHTML(template, config, assets, animations) {
             </div>
             <div id="isi-controls"></div>
         </div>` : ''}
-        ${hasVideo ? `<video id="videoId" autoplay><source src="assets/video.mp4" type="video/mp4" /></video>` : ''}
+        ${hasVideo && !hasBgVideo ? `<video id="videoId" autoplay><source src="assets/video.mp4" type="video/mp4" /></video>` : ''}
         ${buttonsHTML}
     </div>
+    ${hasBgVideo ? `<script src="script/bg-video.js"><\/script>` : ''}
     <script src="script/ad.js"><\/script>
     <script src="script/scroller.js"><\/script>
     ${hasExpandable ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"><\/script>
@@ -277,6 +294,11 @@ export function generateAdJS(config) {
       comment = 'MOD-INT'
       const jobId = zone.jobId || globalJobId
       handlerFn = `openMod("${jobId}");`
+    }
+
+    // Add pauseVideo call before the link action if enabled
+    if (zone.pauseVideo) {
+      handlerFn = `pauseVid(); ${handlerFn}`
     }
 
     return `        //${comment}
@@ -818,4 +840,66 @@ $("#expand")[0].addEventListener('click', function () {
 $("#collapse")[0].addEventListener('click', function () {
     expandTL.reverse();
 });`
+}
+
+/**
+ * Generate bg-video.css for background + embedded video templates
+ */
+export function generateBgVideoCSS(config) {
+  const videoTop = config.videoTop ?? 134
+  const videoLeft = config.videoLeft ?? 65
+  const videoWidth = config.videoWidth ?? 876
+  const videoHeight = config.videoHeight ?? 492
+  const playBtnTop = config.playBtnTop ?? 432
+  const playBtnLeft = config.playBtnLeft ?? 419
+  const playBtnWidth = config.playBtnWidth ?? 146
+
+  return `/* Background + Embedded Video Styles */
+div, img {
+    position: absolute;
+}
+
+#video-container {
+    top: ${videoTop}px;
+    left: ${videoLeft}px;
+    width: ${videoWidth}px;
+    height: ${videoHeight}px;
+    z-index: 999;
+}
+
+#videoId {
+    top: 0;
+    left: 0;
+    width: ${videoWidth}px;
+    height: ${videoHeight}px;
+}
+
+#video_pause_btn {
+    top: ${playBtnTop}px;
+    left: ${playBtnLeft}px;
+    width: ${playBtnWidth}px;
+    z-index: 9999;
+    cursor: pointer;
+}`
+}
+
+/**
+ * Generate bg-video.js for background + embedded video play/pause toggle
+ */
+export function generateBgVideoJS(config) {
+  return `var vid = document.getElementById("videoId");
+
+function pauseVid() {
+    vid.pause();
+    vid.style.display = "none";
+    document.getElementById("video_pause_btn").style.display = "block";
+    document.getElementById("video_pause_btn").style.zIndex = "9999";
+}
+
+function showVid() {
+    document.getElementById("video_pause_btn").style.display = "none";
+    document.getElementById("video_pause_btn").style.zIndex = "-1";
+    vid.style.display = "block";
+    vid.play();
+}`
 }
