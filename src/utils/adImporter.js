@@ -2856,8 +2856,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     metaChanges.push('Added ad.size meta')
   }
 
-  // MR-specific meta tags: Cache-Control, Pragma, Expires, viewport
-  if (!isCPAd) {
+  // Cache-Control, Pragma, Expires, viewport — required for ALL ad types
+  {
     if (!/Cache-Control/i.test(refactoredHtml)) {
       var cacheMeta = '<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">'
       cacheMeta += '\n    <meta http-equiv="Pragma" content="no-cache">'
