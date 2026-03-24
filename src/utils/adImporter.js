@@ -631,6 +631,10 @@ function detectFeatures(html, adJs, mainJs, otherJsCode) {
     hasBannerify: /bannerify|bnfy-enter|bnfy-exit/i.test(allCode),
     // TinyScrollbar (jQuery plugin for ISI scrolling)
     hasTinyScrollbar: /tinyscrollbar/i.test(allCode),
+    // Zepto.js (lightweight jQuery alternative — must be replaced with jQuery 2.1.4)
+    hasZepto: /zepto\.js|zepto\.min\.js/i.test(html),
+    // Swiper.js (touch slider library)
+    hasSwiper: /swiper/i.test(allCode),
     // CSS transitions used for animation (class-swap driven, works on devices — preserved as-is)
     hasCSSTransitions: /transition-property\s*:|transition\s*:(?![^;]*none)/i.test(html),
     // Inline @font-face with CDN src URLs (won't work offline)

@@ -1128,6 +1128,8 @@ function buildFeatureSummary(features) {
   if (features.hasLottie) activeIssues.push('**Lottie/Bodymovin animation** — Vector animation rendered from JSON data. May work on devices if using SVG renderer — must test on actual device. If it fails, rebuild as TweenMax DOM animation')
   if (features.hasBannerify) activeIssues.push('**Bannerify framework** — CSS class-based animation (bnfy-enter/bnfy-exit). Remove Bannerify and rebuild animations with TweenMax if needed')
   if (features.hasTinyScrollbar) activeIssues.push('**jQuery TinyScrollbar** — Scroll library for ISI. Must replace with standard ISI scroller')
+  if (features.hasZepto) activeIssues.push('**Zepto.js** — Lightweight jQuery alternative loaded from CDN. Replace with local jQuery 2.1.4 (API-compatible)')
+  if (features.hasSwiper) activeIssues.push('**Swiper.js** — Touch slider library. Must be removed and functionality rebuilt with TweenMax or CSS')
   if (features.hasCreateJS) activeIssues.push('**CreateJS / Adobe Animate CC** — Canvas-based rendering. Cannot be auto-converted. Requires complete rebuild as DOM-based ad with TweenMax animations')
   if (features.hasEnabler) activeIssues.push('**Enabler.js detected** — Google Ad Manager SDK, requires complete rebuild')
   if (features.hasCDNScripts) activeIssues.push('**CDN scripts (' + (features.cdnScriptCount || '?') + ')** — Devices are offline, scripts must be local')
