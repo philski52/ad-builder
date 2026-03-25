@@ -1474,7 +1474,7 @@ function buildISIDetails(features, config, adMeta) {
   const hasScrollerConfig = config?.scrollerColor || config?.scrollerWidth || config?.isiHeight || config?.scrollerTrackColor
   if (hasScrollerConfig) {
     section += '\n### Original Scroller Styling (from imported ad)\n'
-    section += 'Use these values when customizing `scroller.css` to match the original ad:\n\n'
+    section += 'These values were auto-extracted from the original ad\'s CSS. Apply them to `scroller.css` so the refactored ad matches the original design:\n\n'
     if (config.isiTop != null) section += `- **ISI container top:** ${config.isiTop}px\n`
     if (config.isiHeight) section += `- **ISI container height:** ${config.isiHeight}px\n`
     if (config.isiWidth) section += `- **ISI container width:** ${config.isiWidth}px\n`
@@ -1485,6 +1485,13 @@ function buildISIDetails(features, config, adMeta) {
     if (config.scrollerBorderRadius != null) section += `- **Scroller border-radius:** ${config.scrollerBorderRadius}px\n`
     if (config.scrollerTrackColor) section += `- **Track color:** ${config.scrollerTrackColor}\n`
     if (config.scrollerTrackWidth) section += `- **Track width:** ${config.scrollerTrackWidth}px\n`
+    if (config.isiControlsRight) section += `- **Scrollbar position (right):** ${config.isiControlsRight}\n`
+    if (config.isiControlsTop) section += `- **Scrollbar position (top):** ${config.isiControlsTop}\n`
+    var sources = []
+    if (config.scrollerThumbSelector) sources.push('thumb: `' + config.scrollerThumbSelector + '`')
+    if (config.scrollerTrackSelector) sources.push('track: `' + config.scrollerTrackSelector + '`')
+    if (config.isiContainerSelector) sources.push('container: `' + config.isiContainerSelector + '`')
+    if (sources.length > 0) section += `- **Extracted from:** ${sources.join(', ')}\n`
   }
 
   section += '\n'

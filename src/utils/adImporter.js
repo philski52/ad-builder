@@ -291,7 +291,7 @@ export async function parseAdZip(zipFile, options) {
 
     // 5. Extract ISI configuration from CSS
     if (features.hasISI) {
-      const isiConfig = extractISIConfig(scrollerCss, mainCss)
+      const isiConfig = extractISIConfig(scrollerCss, mainCss, html)
       Object.assign(result.config, isiConfig)
     }
 
@@ -809,66 +809,119 @@ function extractClickTags(adJs, html = '') {
 /**
  * Extract ISI configuration from CSS
  */
-function extractISIConfig(scrollerCss, mainCss) {
-  const css = scrollerCss + '\n' + mainCss
-  const config = {}
+function extractISIConfig(scrollerCss, mainCss, html) {
+  var css = scrollerCss + '\n' + mainCss
+  // Also scan inline <style> blocks in the HTML for ISI/scroller styling
+  if (html) {
+    var inlineStyles = html.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || []
+    inlineStyles.forEach(function(block) {
+      var content = block.replace(/<\/?style[^>]*>/gi, '')
+      css += '\n' + content
+    })
+  }
+  var config = {}
 
-  // Helper to extract CSS value
-  const getValue = (selector, prop, css) => {
-    // Match selector block and find property
-    const selectorRegex = new RegExp(`${selector.replace(/[#.]/g, '\\$&')}\\s*\\{([^}]+)\\}`, 'i')
-    const blockMatch = css.match(selectorRegex)
-    if (!blockMatch) return null
-
-    const propRegex = new RegExp(`${prop}:\\s*([^;]+)`, 'i')
-    const propMatch = blockMatch[1].match(propRegex)
-    return propMatch ? propMatch[1].trim() : null
+  // Helper to extract CSS value from any matching selector block
+  var getValue = function(selector, prop, source) {
+    var escaped = selector.replace(/[#.:[\]()]/g, '\\$&')
+    var selectorRegex = new RegExp(escaped + '\\s*\\{([^}]+)\\}', 'gi')
+    var match
+    while ((match = selectorRegex.exec(source)) !== null) {
+      var propRegex = new RegExp(prop + ':\\s*([^;]+)', 'i')
+      var propMatch = match[1].match(propRegex)
+      if (propMatch) return propMatch[1].trim()
+    }
+    return null
   }
 
-  // ISI container dimensions
-  const isiHeight = getValue('#outerMostDiv', 'height', css)
-  if (isiHeight) config.isiHeight = parseInt(isiHeight)
+  // ISI container dimensions — check standard and common agency patterns
+  var isiContainerSelectors = ['#outerMostDiv', '#isi-container', '#isi-con', '#scrollbar1', '.isi-wrapper', '#isi_container']
+  for (var i = 0; i < isiContainerSelectors.length; i++) {
+    var sel = isiContainerSelectors[i]
+    if (!config.isiHeight) {
+      var h = getValue(sel, 'height', css)
+      if (h) { config.isiHeight = parseInt(h); config.isiContainerSelector = sel }
+    }
+    if (!config.isiTop) {
+      var t = getValue(sel, 'top', css)
+      if (t) config.isiTop = parseInt(t)
+    }
+    if (!config.isiWidth) {
+      var w = getValue(sel, 'width', css)
+      if (w) config.isiWidth = parseInt(w)
+    }
+    if (!config.isiBackgroundColor) {
+      var bg = getValue(sel, 'background-color', css) || getValue(sel, 'background', css)
+      if (bg && !/url\(|none|transparent/i.test(bg)) config.isiBackgroundColor = bg
+    }
+  }
 
-  const isiTop = getValue('#outerMostDiv', 'top', css)
-  if (isiTop) config.isiTop = parseInt(isiTop)
+  // Scroller thumb styling — check standard and agency patterns
+  // Standard: .scroller | TinyScrollbar: #thumb | mCustomScrollbar: .mCSB_dragger_bar | OverlayScrollbars: .os-scrollbar-handle | Havas: .knob
+  var thumbSelectors = ['.scroller', '#thumb', '.mCSB_dragger_bar', '.os-scrollbar-handle', '.knob']
+  for (var j = 0; j < thumbSelectors.length; j++) {
+    var thumbSel = thumbSelectors[j]
+    if (!config.scrollerColor) {
+      var c = getValue(thumbSel, 'background-color', css) || getValue(thumbSel, 'background', css)
+      if (c && !/url\(|none|transparent/i.test(c)) { config.scrollerColor = c; config.scrollerThumbSelector = thumbSel }
+    }
+    if (!config.scrollerWidth) {
+      var sw = getValue(thumbSel, 'width', css)
+      if (sw) config.scrollerWidth = parseInt(sw)
+    }
+    if (!config.scrollerHeight) {
+      var sh = getValue(thumbSel, 'height', css)
+      if (sh) config.scrollerHeight = parseInt(sh)
+    }
+    if (!config.scrollerBorderRadius) {
+      var sr = getValue(thumbSel, 'border-radius', css)
+      if (sr) config.scrollerBorderRadius = parseInt(sr)
+    }
+  }
 
-  const isiWidth = getValue('#outerMostDiv', 'width', css)
-  if (isiWidth) config.isiWidth = parseInt(isiWidth)
+  // Scroller track styling — check standard and agency patterns
+  // Standard: .isiLineNoArrows | TinyScrollbar: #track | mCustomScrollbar: .mCSB_draggerRail | OverlayScrollbars: .os-scrollbar-track | Havas: .knob-arrange
+  var trackSelectors = ['.isiLineNoArrows', '#track', '.mCSB_draggerRail', '.os-scrollbar-track', '.knob-arrange']
+  for (var k = 0; k < trackSelectors.length; k++) {
+    var trackSel = trackSelectors[k]
+    if (!config.scrollerTrackColor) {
+      var tc = getValue(trackSel, 'background-color', css) || getValue(trackSel, 'background', css)
+      if (tc && !/url\(|none|transparent/i.test(tc)) { config.scrollerTrackColor = tc; config.scrollerTrackSelector = trackSel }
+    }
+    if (!config.scrollerTrackWidth) {
+      var tw = getValue(trackSel, 'width', css)
+      if (tw) config.scrollerTrackWidth = parseInt(tw)
+    }
+  }
 
-  const isiLeft = getValue('#outerMostDiv', 'left', css)
-  if (isiLeft) config.isiLeft = parseInt(isiLeft)
+  // Also check webkit-scrollbar pseudo-elements (some agencies use native scrollbar styling)
+  var webkitThumbColor = getValue('::-webkit-scrollbar-thumb', 'background-color', css) || getValue('::-webkit-scrollbar-thumb', 'background', css)
+  if (webkitThumbColor && !config.scrollerColor && !/url\(|none|transparent/i.test(webkitThumbColor)) {
+    config.scrollerColor = webkitThumbColor
+    config.scrollerThumbSelector = '::-webkit-scrollbar-thumb'
+  }
+  var webkitTrackColor = getValue('::-webkit-scrollbar-track', 'background-color', css) || getValue('::-webkit-scrollbar-track', 'background', css)
+  if (webkitTrackColor && !config.scrollerTrackColor && !/url\(|none|transparent/i.test(webkitTrackColor)) {
+    config.scrollerTrackColor = webkitTrackColor
+  }
+  var webkitWidth = getValue('::-webkit-scrollbar', 'width', css)
+  if (webkitWidth && !config.scrollerWidth) {
+    config.scrollerWidth = parseInt(webkitWidth)
+  }
 
-  const isiBgColor = getValue('#outerMostDiv', 'background-color', css)
-  if (isiBgColor) config.isiBackgroundColor = isiBgColor
-
-  // Scroller styling
-  const scrollerWidth = getValue('.scroller', 'width', css)
-  if (scrollerWidth) config.scrollerWidth = parseInt(scrollerWidth)
-
-  const scrollerHeight = getValue('.scroller', 'height', css)
-  if (scrollerHeight) config.scrollerHeight = parseInt(scrollerHeight)
-
-  const scrollerColor = getValue('.scroller', 'background-color', css) || getValue('.scroller', 'background', css)
-  if (scrollerColor) config.scrollerColor = scrollerColor
-
-  const scrollerRadius = getValue('.scroller', 'border-radius', css)
-  if (scrollerRadius) config.scrollerBorderRadius = parseInt(scrollerRadius)
-
-  // Scroller track
-  const trackColor = getValue('.isiLineNoArrows', 'background-color', css) || getValue('.isiLineNoArrows', 'background', css)
-  if (trackColor) config.scrollerTrackColor = trackColor
-
-  const trackHeight = getValue('.isiLineNoArrows', 'height', css)
-  if (trackHeight) config.scrollerTrackHeight = trackHeight
-
-  // ISI controls positioning
-  const controlsRight = getValue('#isi-controls', 'right', css)
+  // ISI controls positioning (standard pattern)
+  var controlsRight = getValue('#isi-controls', 'right', css)
   if (controlsRight) config.isiControlsRight = controlsRight
-  const controlsHeight = getValue('#isi-controls', 'height', css)
+  var controlsHeight = getValue('#isi-controls', 'height', css)
   if (controlsHeight) config.isiControlsHeight = controlsHeight
 
-  const trackWidth = getValue('.isiLineNoArrows', 'width', css)
-  if (trackWidth) config.scrollerTrackWidth = parseInt(trackWidth)
+  // Scroller container positioning (Havas pattern)
+  if (!config.isiControlsRight) {
+    var containerRight = getValue('.scroller-container', 'right', css)
+    if (containerRight) config.isiControlsRight = containerRight
+    var containerTop = getValue('.scroller-container', 'top', css)
+    if (containerTop) config.isiControlsTop = containerTop
+  }
 
   return config
 }
