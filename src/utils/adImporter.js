@@ -4139,11 +4139,28 @@ function convertInlineOnclickHandlers(html, adJs) {
     handlersJs += '        }\n'
     handlersJs += '    }\n\n'
 
-    // Emit clickTag variable declarations using the original clickVar names
+    // Build clickTag lookup from the full source (HTML + adJs) to resolve actual URLs
+    var allSource = resultHtml + '\n' + resultAdJs
+    var clickTagLookup = {}
+    var decodeEntities = function(s) { return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"') }
+    var varDeclPattern = /(?:var\s+)?(clickTag\w*)\s*=\s*["']([^"']+)["']/gi
+    var vMatch
+    while ((vMatch = varDeclPattern.exec(allSource)) !== null) {
+      clickTagLookup[vMatch[1]] = decodeEntities(vMatch[2])
+    }
+
+    // Emit clickTag variable declarations — resolve from lookup or placeholder
     var seenVars = {}
     clickHandlers.forEach(function(handler) {
       if (!seenVars[handler.clickVar]) {
-        handlersJs += '    var ' + handler.clickVar + ' = "https://education.patientpoint.com/failsafe-page/" // TODO: set correct URL\n'
+        var resolvedUrl = clickTagLookup[handler.clickVar] || ''
+        handler.resolvedUrl = resolvedUrl
+        handler.isPdf = /\.pdf(\b|$)/i.test(resolvedUrl)
+        if (resolvedUrl) {
+          handlersJs += '    var ' + handler.clickVar + ' = "' + resolvedUrl + '"\n'
+        } else {
+          handlersJs += '    var ' + handler.clickVar + ' = "" // TODO: set correct URL\n'
+        }
         seenVars[handler.clickVar] = true
       }
     })
@@ -4152,9 +4169,11 @@ function convertInlineOnclickHandlers(html, adJs) {
     handlersJs += '    function assignClickHandlers() {\n'
 
     clickHandlers.forEach(function(handler) {
-      handlersJs += '        //LINK\n'
+      var handlerFn = handler.isPdf ? 'openExternalPDF' : 'openExternalLinkFull'
+      var comment = handler.isPdf ? '//PDF' : '//LINK'
+      handlersJs += '        ' + comment + '\n'
       handlersJs += '        $(\'' + handler.selector + '\')[0].addEventListener("click", function (e) {\n'
-      handlersJs += '            openExternalLinkFull(e, ' + handler.clickVar + ');\n'
+      handlersJs += '            ' + handlerFn + '(e, ' + handler.clickVar + ');\n'
       handlersJs += '        }, false);\n'
     })
 
