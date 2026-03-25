@@ -124,7 +124,7 @@ function getNextStep(answers) {
 function TemplateWizard({ onClose }) {
   var [answers, setAnswers] = useState({})
   var [history, setHistory] = useState([])
-  var selectTemplate = useProjectStore(function(s) { return s.selectTemplate })
+  var setTemplate = useProjectStore(function(s) { return s.setTemplate })
 
   var currentStep = getNextStep(answers)
   var templateId = currentStep === null ? resolveTemplate(answers) : null
@@ -147,7 +147,7 @@ function TemplateWizard({ onClose }) {
 
   function handleUseTemplate() {
     if (matchedTemplate) {
-      selectTemplate(matchedTemplate)
+      setTemplate(matchedTemplate)
     }
   }
 
