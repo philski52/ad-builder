@@ -18,6 +18,63 @@ function ClickZoneToolWorkspace() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
   const fileInputRef = useRef(null)
+  const folderInputRef = useRef(null)
+
+  // Process a JSZip object (shared by both ZIP and folder uploads)
+  const processZip = async (zip, name) => {
+    const fileMap = {}
+    let htmlFile = null
+    let htmlContent = ''
+    let combinedCSS = ''
+    let combinedJS = ''
+
+    for (const [filename, zipEntry] of Object.entries(zip.files)) {
+      if (zipEntry.dir) continue
+      const lowerName = filename.toLowerCase()
+
+      if (lowerName.endsWith('.html') || lowerName.endsWith('.htm')) {
+        htmlContent = await zipEntry.async('string')
+        htmlFile = filename
+      } else if (lowerName.endsWith('.css')) {
+        const cssText = await zipEntry.async('string')
+        combinedCSS += `/* ${filename} */\n${cssText}\n`
+      } else if (lowerName.endsWith('.js') && !lowerName.includes('jquery') && !lowerName.includes('tweenmax') && !lowerName.includes('gsap')) {
+        const jsText = await zipEntry.async('string')
+        combinedJS += `/* ${filename} */\n${jsText}\n`
+      }
+
+      if (lowerName.match(/\.(png|jpg|jpeg|gif|svg|mp4|webm|webp)$/)) {
+        const blob = await zipEntry.async('blob')
+        const dataUrl = await blobToDataUrl(blob)
+        fileMap[filename] = { content: blob, dataUrl }
+      } else {
+        const text = await zipEntry.async('string')
+        fileMap[filename] = { content: text }
+      }
+    }
+
+    if (!htmlContent) {
+      throw new Error('No HTML file found')
+    }
+
+    const inlineCSS = extractInlineCSS(htmlContent)
+    const inlineJS = extractInlineJS(htmlContent)
+    combinedCSS = inlineCSS + '\n' + combinedCSS
+    combinedJS = inlineJS + '\n' + combinedJS
+
+    const { zones, dimensions } = detectClickZones(htmlContent, combinedCSS, combinedJS)
+
+    setAdData({
+      files: fileMap,
+      htmlContent,
+      cssContent: combinedCSS,
+      jsContent: combinedJS,
+      adName: name,
+      dimensions,
+      clickZones: zones,
+      originalZipFile: null
+    })
+  }
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -28,70 +85,42 @@ function ClickZoneToolWorkspace() {
 
     try {
       const zip = await JSZip.loadAsync(file)
-      const fileMap = {}
-      let htmlFile = null
-      let htmlContent = ''
-      let combinedCSS = ''
-      let combinedJS = ''
-
-      // Extract all files
-      for (const [filename, zipEntry] of Object.entries(zip.files)) {
-        if (zipEntry.dir) continue
-        const lowerName = filename.toLowerCase()
-
-        if (lowerName.endsWith('.html') || lowerName.endsWith('.htm')) {
-          htmlContent = await zipEntry.async('string')
-          htmlFile = filename
-        } else if (lowerName.endsWith('.css')) {
-          const cssText = await zipEntry.async('string')
-          combinedCSS += `/* ${filename} */\n${cssText}\n`
-        } else if (lowerName.endsWith('.js') && !lowerName.includes('jquery') && !lowerName.includes('tweenmax') && !lowerName.includes('gsap')) {
-          const jsText = await zipEntry.async('string')
-          combinedJS += `/* ${filename} */\n${jsText}\n`
-        }
-
-        // Store all files for preview and export
-        if (lowerName.match(/\.(png|jpg|jpeg|gif|svg|mp4|webm|webp)$/)) {
-          const blob = await zipEntry.async('blob')
-          const dataUrl = await blobToDataUrl(blob)
-          fileMap[filename] = { content: blob, dataUrl }
-        } else {
-          const text = await zipEntry.async('string')
-          fileMap[filename] = { content: text }
-        }
-      }
-
-      if (!htmlContent) {
-        throw new Error('No HTML file found in ZIP')
-      }
-
-      // Also extract inline CSS and JS from the HTML
-      const inlineCSS = extractInlineCSS(htmlContent)
-      const inlineJS = extractInlineJS(htmlContent)
-      combinedCSS = inlineCSS + '\n' + combinedCSS
-      combinedJS = inlineJS + '\n' + combinedJS
-
-      // Detect existing click zones
-      const { zones, dimensions } = detectClickZones(htmlContent, combinedCSS, combinedJS)
-
-      // Derive ad name from zip filename
-      const adName = file.name.replace('.zip', '')
-
-      setAdData({
-        files: fileMap,
-        htmlContent,
-        cssContent: combinedCSS,
-        jsContent: combinedJS,
-        adName,
-        dimensions,
-        clickZones: zones,
-        originalZipFile: file
-      })
+      await processZip(zip, file.name.replace('.zip', ''))
     } catch (err) {
       setError(`Failed to parse ZIP: ${err.message}`)
     } finally {
       setIsLoading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleFolderUpload = async (e) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setError(null)
+    setIsLoading(true)
+
+    try {
+      const zip = new JSZip()
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const path = file.webkitRelativePath || file.name
+        if (path.includes('__MACOSX') || path.includes('.DS_Store') || path.includes('Thumbs.db')) continue
+        const content = await file.arrayBuffer()
+        zip.file(path, content)
+      }
+
+      // Derive name from folder path
+      const firstPath = files[0].webkitRelativePath || files[0].name
+      const folderName = firstPath.split('/')[0] || 'ad'
+
+      await processZip(zip, folderName)
+    } catch (err) {
+      setError(`Failed to parse folder: ${err.message}`)
+    } finally {
+      setIsLoading(false)
+      if (folderInputRef.current) folderInputRef.current.value = ''
     }
   }
 
@@ -140,9 +169,9 @@ function ClickZoneToolWorkspace() {
                 ) : (
                   <>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8" />
                     </svg>
-                    Upload Ad ZIP
+                    Upload ZIP
                   </>
                 )}
                 <input
@@ -150,6 +179,21 @@ function ClickZoneToolWorkspace() {
                   type="file"
                   accept=".zip"
                   onChange={handleFileUpload}
+                  className="hidden"
+                  disabled={isLoading}
+                />
+              </label>
+              <label className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer flex items-center gap-2 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                Upload Folder
+                <input
+                  ref={folderInputRef}
+                  type="file"
+                  webkitdirectory=""
+                  directory=""
+                  onChange={handleFolderUpload}
                   className="hidden"
                   disabled={isLoading}
                 />
@@ -187,11 +231,9 @@ function ClickZoneToolWorkspace() {
       {/* Main Content */}
       {hasAd ? (
         <div className="flex flex-1 overflow-hidden">
-          {/* Panel */}
           <div className="w-96 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0">
             <ClickZoneToolPanel />
           </div>
-          {/* Preview */}
           <div className="flex-1 overflow-auto p-6">
             <ClickZoneToolPreview />
           </div>
@@ -203,20 +245,36 @@ function ClickZoneToolWorkspace() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
             </svg>
             <h2 className="text-xl font-semibold text-gray-700 mb-2">Upload an Ad</h2>
-            <p className="text-gray-500 mb-6">Upload a ZIP file to detect and edit click zones</p>
-            <label className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer inline-flex items-center gap-2 transition-colors">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-              Choose ZIP File
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".zip"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-            </label>
+            <p className="text-gray-500 mb-6">Upload a ZIP file or folder to detect and edit click zones</p>
+            <div className="flex items-center justify-center gap-4">
+              <label className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer inline-flex items-center gap-2 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8" />
+                </svg>
+                Choose ZIP
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".zip"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+              <label className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer inline-flex items-center gap-2 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                Choose Folder
+                <input
+                  ref={folderInputRef}
+                  type="file"
+                  webkitdirectory=""
+                  directory=""
+                  onChange={handleFolderUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
           </div>
         </div>
       )}
@@ -259,9 +317,7 @@ function extractInlineJS(html) {
   let js = ''
   let match
   while ((match = scriptRegex.exec(html)) !== null) {
-    // Skip console override scripts
     if (match[1].includes('console.log = console.info')) continue
-    // Skip appHost initialization
     if (match[1].trim().startsWith('var appHost')) continue
     js += match[1] + '\n'
   }
