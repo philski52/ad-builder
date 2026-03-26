@@ -22,7 +22,8 @@ function ClickZoneToolWorkspace() {
   const folderInputRef = useRef(null)
 
   // Process a JSZip object (shared by both ZIP and folder uploads)
-  const processZip = async (zip, name) => {
+  // zipFile: original File object (for ZIP uploads) or null (for folder/drop)
+  const processZip = async (zip, name, zipFile) => {
     const fileMap = {}
     let htmlFile = null
     let htmlContent = ''
@@ -73,7 +74,8 @@ function ClickZoneToolWorkspace() {
       adName: name,
       dimensions,
       clickZones: zones,
-      originalZipFile: null
+      // Use original file if available, otherwise generate a blob from the JSZip
+      originalZipFile: zipFile || await zip.generateAsync({ type: 'blob' })
     })
   }
 
@@ -86,7 +88,7 @@ function ClickZoneToolWorkspace() {
 
     try {
       const zip = await JSZip.loadAsync(file)
-      await processZip(zip, file.name.replace('.zip', ''))
+      await processZip(zip, file.name.replace('.zip', ''), file)
     } catch (err) {
       setError(`Failed to parse ZIP: ${err.message}`)
     } finally {
@@ -168,7 +170,7 @@ function ClickZoneToolWorkspace() {
           throw new Error('Please drop a ZIP file or a folder')
         }
         const zip = await JSZip.loadAsync(file)
-        await processZip(zip, file.name.replace('.zip', ''))
+        await processZip(zip, file.name.replace('.zip', ''), file)
       }
     } catch (err) {
       setError(`Drop failed: ${err.message}`)
