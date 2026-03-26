@@ -310,17 +310,17 @@ export function generateAdJS(config) {
   return `$(document).ready(function () {
 
     //External Link
-    function openExternalLinkFull(e, clickTag) {
-        if (typeof appHost !== 'undefined' && appHost) {
-            appHost.openExternalLinkFull(clickTag);
+    function openExternalLinkFull(e, linkUrl) {
+        if (typeof appHost !== 'undefined') {
+            appHost.requestFullscreenBrowserView(linkUrl);
         } else {
-            window.open(clickTag);
+            window.open(linkUrl);
         }
     }
 
     //External PDF
     function openExternalPDF(e, pdfUrl) {
-        if (typeof appHost !== 'undefined' && appHost) {
+        if (typeof appHost !== 'undefined') {
             appHost.requestPDFView(pdfUrl);
         } else {
             window.open(pdfUrl);
