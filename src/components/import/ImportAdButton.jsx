@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { parseAdZip } from '../../utils/adImporter'
+import { parseAdZip, parseAdFolder } from '../../utils/adImporter'
 import { useRefactorStore } from '../../stores/refactorStore'
 
 const AD_PLATFORMS = [
@@ -62,9 +62,10 @@ const IXR_AD_TYPES = [
 
 function ImportAdButton() {
   const fileInputRef = useRef(null)
+  const folderInputRef = useRef(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [pickerStep, setPickerStep] = useState(null) // null | 'platform' | 'adType'
+  const [pickerStep, setPickerStep] = useState(null) // null | 'platform' | 'adType' | 'uploadType'
   const [selectedPlatform, setSelectedPlatform] = useState(null)
   const [selectedAdType, setSelectedAdType] = useState(null)
   const startRefactor = useRefactorStore((s) => s.startRefactor)
@@ -76,20 +77,25 @@ function ImportAdButton() {
   const handlePlatformSelect = (platformId) => {
     setSelectedPlatform(platformId)
     if (platformId === 'ixr') {
-      // IXR needs ad type sub-selection
       setPickerStep('adType')
     } else {
-      // Focus (and future platforms) go straight to file picker
       setSelectedAdType(null)
-      setPickerStep(null)
-      fileInputRef.current?.click()
+      setPickerStep('uploadType')
     }
   }
 
   const handleAdTypeSelect = (adTypeId) => {
     setSelectedAdType(adTypeId)
+    setPickerStep('uploadType')
+  }
+
+  const handleUploadType = (type) => {
     setPickerStep(null)
-    fileInputRef.current?.click()
+    if (type === 'zip') {
+      fileInputRef.current?.click()
+    } else {
+      folderInputRef.current?.click()
+    }
   }
 
   const handleCancel = () => {
@@ -99,8 +105,16 @@ function ImportAdButton() {
   }
 
   const handleBack = () => {
-    setPickerStep('platform')
-    setSelectedAdType(null)
+    if (pickerStep === 'uploadType') {
+      if (selectedPlatform === 'ixr') {
+        setPickerStep('adType')
+      } else {
+        setPickerStep('platform')
+      }
+    } else if (pickerStep === 'adType') {
+      setPickerStep('platform')
+      setSelectedAdType(null)
+    }
   }
 
   const handleFileSelect = async (e) => {
@@ -121,14 +135,39 @@ function ImportAdButton() {
       })
       await startRefactor(result, file, selectedPlatform, selectedAdType)
     } catch (err) {
-      setError(`Failed to parse ZIP: ${err.message}`)
+      setError(`Failed to parse: ${err.message}`)
     } finally {
       setIsLoading(false)
       setSelectedPlatform(null)
       setSelectedAdType(null)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleFolderSelect = async (e) => {
+    const files = e.target.files
+    if (!files || files.length === 0) {
+      setSelectedPlatform(null)
+      setSelectedAdType(null)
+      return
+    }
+
+    setError(null)
+    setIsLoading(true)
+
+    try {
+      const result = await parseAdFolder(files, {
+        platform: selectedPlatform,
+        adType: selectedAdType
+      })
+      await startRefactor(result, files[0], selectedPlatform, selectedAdType)
+    } catch (err) {
+      setError(`Failed to parse folder: ${err.message}`)
+    } finally {
+      setIsLoading(false)
+      setSelectedPlatform(null)
+      setSelectedAdType(null)
+      if (folderInputRef.current) folderInputRef.current.value = ''
     }
   }
 
@@ -158,13 +197,8 @@ function ImportAdButton() {
           )}
         </button>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".zip"
-          onChange={handleFileSelect}
-          className="hidden"
-        />
+        <input ref={fileInputRef} type="file" accept=".zip" onChange={handleFileSelect} className="hidden" />
+        <input ref={folderInputRef} type="file" webkitdirectory="" directory="" onChange={handleFolderSelect} className="hidden" />
       </div>
 
       {/* Selection modal */}
@@ -224,6 +258,54 @@ function ImportAdButton() {
                       </div>
                     </button>
                   ))}
+                </div>
+                <button onClick={handleCancel} className="mt-4 w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+                  Cancel
+                </button>
+              </>
+            )}
+
+            {/* Step 3: Upload type — ZIP or Folder */}
+            {pickerStep === 'uploadType' && (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <button onClick={handleBack} className="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <h2 className="text-lg font-semibold text-gray-900">Upload Ad</h2>
+                </div>
+                <p className="text-sm text-gray-500 mb-4">How would you like to upload?</p>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => handleUploadType('zip')}
+                    className="w-full flex items-center gap-4 p-4 rounded-lg border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                  >
+                    <div className="text-gray-600 flex-shrink-0">
+                      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-900">ZIP File</div>
+                      <div className="text-sm text-gray-500">Upload a .zip archive</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleUploadType('folder')}
+                    className="w-full flex items-center gap-4 p-4 rounded-lg border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                  >
+                    <div className="text-gray-600 flex-shrink-0">
+                      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-900">Folder</div>
+                      <div className="text-sm text-gray-500">Select an ad folder from your computer</div>
+                    </div>
+                  </button>
                 </div>
                 <button onClick={handleCancel} className="mt-4 w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
                   Cancel

@@ -13,6 +13,23 @@ import { generateScrollerJS } from './templateGenerator'
  * @param {string} options.platform - Ad platform: 'ixr' | 'focus' | 'ipro'
  * @returns {Promise<ImportResult>}
  */
+export async function parseAdFolder(fileList, options) {
+  // Convert a folder's FileList into a JSZip object, then run the normal pipeline
+  var zip = new JSZip()
+  for (var i = 0; i < fileList.length; i++) {
+    var file = fileList[i]
+    var path = file.webkitRelativePath || file.name
+    // Skip OS junk files
+    if (path.includes('__MACOSX') || path.includes('.DS_Store') || path.includes('Thumbs.db')) continue
+    var content = await file.arrayBuffer()
+    zip.file(path, content)
+  }
+  // Generate a zip blob and pass to parseAdZip
+  var blob = await zip.generateAsync({ type: 'blob' })
+  var zipFile = new File([blob], 'folder-upload.zip', { type: 'application/zip' })
+  return parseAdZip(zipFile, options)
+}
+
 export async function parseAdZip(zipFile, options) {
   var platform = (options && options.platform) || 'ixr'
   var adType = (options && options.adType) || null // 'cp' | 'mr' | null (auto-detect)
