@@ -3472,14 +3472,14 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     })
   }
 
-  // 23. Remove overflow:hidden from html/body for CP ads (allows browser scrolling for testing)
-  if (isCPAd) {
+  // 23. Remove overflow:hidden from html/body (never used in our ads, prevents browser scrolling)
+  {
     var overflowResult = removeBodyOverflowHidden(refactoredHtml)
     if (overflowResult.changed) {
       refactoredHtml = overflowResult.html
       appliedFixes.push({
         id: 'remove-body-overflow-hidden',
-        description: 'Removed overflow:hidden from html/body for browser testing (CP ad)',
+        description: 'Removed overflow:hidden from html/body (not used in our ads)',
         details: overflowResult.changes
       })
     }
@@ -3498,9 +3498,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
 }
 
 /**
- * Remove overflow:hidden from html and body CSS rules (CP ads only)
- * This allows devs to scroll in the browser to see the full 1080x1733 ad during testing.
- * The device handles display — it doesn't need overflow:hidden on the root elements.
+ * Remove overflow:hidden from html and body CSS rules (all ad types)
+ * We never use overflow:hidden on body in our ads — it prevents browser scrolling during testing.
  */
 function removeBodyOverflowHidden(html) {
   var changes = []
