@@ -67,10 +67,9 @@ function ClickZoneToolPreview() {
       .hidden, .js-bnfy { display: block !important; }
       body { overflow: visible !important; margin: 0; padding: 0; }
       html, body { width: 100%; height: 100%; }
-      /* Show ISI content — remove overflow clipping so click zones can be placed on ISI links */
+      /* Allow ISI to scroll — remove overflow clipping but keep positioning intact */
       #outerMostDiv, #innerMostDiv, #isi-container, #isi-con,
-      [id*="isi"], [class*="isi"], #scrollbar1 #viewport,
-      #scrollbar1 #overview { overflow: visible !important; height: auto !important; }
+      [id*="isi"], [class*="isi"] { overflow: visible !important; }
       #isi-controls, .scroller, .isiLineNoArrows, .scrollbar_bottom,
       .knob, .knob-arrange, .scroller-container { display: none !important; }
     </style></head>`)
@@ -175,9 +174,7 @@ function ClickZoneToolPreview() {
   }
 
   const frameWidth = dimensions.width * scale + 2
-  // Extend height to show ISI content below the ad viewport
-  const extendedHeight = dimensions.height * 3
-  const frameHeight = extendedHeight * scale + 2
+  const frameHeight = dimensions.height * scale + 2
 
   return (
     <div className="space-y-4">
@@ -188,19 +185,18 @@ function ClickZoneToolPreview() {
         <button onClick={() => setKey(k => k + 1)} className="ml-auto text-sm text-blue-600 hover:text-blue-800">
           Refresh Preview
         </button>
-        <span className="text-sm text-gray-400">Scroll down to see ISI content</span>
       </div>
 
       <div className="inline-block">
         <div
-          className="border border-gray-300 rounded-lg overflow-auto shadow-lg bg-white"
-          style={{ width: frameWidth, maxHeight: '80vh' }}
+          className="border border-gray-300 rounded-lg overflow-hidden shadow-lg bg-white"
+          style={{ width: frameWidth, height: frameHeight }}
         >
           <div
             style={{
               width: dimensions.width * scale,
-              height: frameHeight,
-              overflow: 'visible',
+              height: dimensions.height * scale,
+              overflow: 'hidden',
               background: 'white',
               position: 'relative'
             }}
@@ -214,7 +210,7 @@ function ClickZoneToolPreview() {
               srcDoc={previewHTML}
               style={{
                 width: dimensions.width,
-                height: extendedHeight,
+                height: dimensions.height,
                 transform: `scale(${scale})`,
                 transformOrigin: 'top left',
                 border: 'none',
