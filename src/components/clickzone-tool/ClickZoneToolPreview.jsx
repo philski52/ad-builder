@@ -51,36 +51,28 @@ function ClickZoneToolPreview() {
     html = html.replace(/onclick="[^"]*"/gi, 'onclick="event.preventDefault()"')
     html = html.replace(/onclick='[^']*'/gi, "onclick='event.preventDefault()'")
 
-    // Strip external script tags — we don't need animation/click JS for the click zone preview
-    // This prevents errors from AppHost, GSAP CDN, Enabler.js, etc.
-    html = html.replace(/<script[^>]*src=["'][^"']*["'][^>]*><\/script>/gi, '<!-- script removed for preview -->')
-    // Strip inline scripts (except style-related ones)
-    html = html.replace(/<script(?![^>]*type=["']text\/css["'])[^>]*>[\s\S]*?<\/script>/gi, '<!-- script removed for preview -->')
+    // Instead of stripping scripts, inject stubs for APIs that don't exist in the preview
+    // This lets the ad's own JS run (animation, layout, visibility) while preventing crashes
+    html = html.replace(/<head[^>]*>/i, `$&
+    <script>
+      // Stub AppHost so ads don't crash trying to access it
+      window.top.AppHost = window.top.AppHost || function() { return { requestFullscreenBrowserView: function(){}, requestPDFView: function(){}, requestModalAdView: function(){}, dismissModalAdView: function(){} }; };
+      // Stub Enabler for GWD ads
+      window.Enabler = window.Enabler || { isInitialized: function(){ return true; }, isPageLoaded: function(){ return true; }, exit: function(){}, addEventListener: function(){}, removeEventListener: function(){}, loadModule: function(m,cb){ if(cb)cb(); }, isVisible: function(){ return true; }, isServingInLiveEnvironment: function(){ return false; }, counter: function(){}, startTimer: function(){}, stopTimer: function(){}, reportManualClose: function(){}, setResponsiveExpanding: function(){}, queryFullscreenSupport: function(){}, requestExpand: function(){}, requestCollapse: function(){}, finishExpand: function(){}, finishCollapse: function(){}, requestFullscreenExpand: function(){}, finishFullscreenExpand: function(){}, requestFullscreenCollapse: function(){}, finishFullscreenCollapse: function(){}, setRushSimulatedLocalEvents: function(){}, setResponsiveSize: function(){}, exitOverride: function(){}, dynamicExit: function(){}, getParameter: function(){ return ''; } };
+      window.studio = window.studio || { events: { StudioEvent: { INIT: 'init', VISIBLE: 'visible', FULLSCREEN_SUPPORT: 'fs', HOSTPAGE_SCROLL: 'scroll', EXIT: 'exit' } }, module: { ModuleId: { GDN: 'gdn', VIDEO: 'video' } }, video: { Reporter: { attach: function(){} } }, sdk: { gdn: { getConfig: function(){ return { isInCreativeToolsetContext: function(){ return false; }, isInterstitial: function(cb){ if(cb)cb(false); } }; } } } };
+      // Prevent window.open from actually opening windows
+      window.open = function() {};
+      // Prevent console silencing so we can debug
+      // (some ads override console — we want to keep it)
+    </script>`)
 
-    // Force all elements visible — agencies hide content until JS runs via:
-    // visibility:hidden, display:none, opacity:0, autoAlpha (visibility+opacity)
-    html = html.replace(/<\/head>/i, `<style>
-      * { visibility: visible !important; opacity: 1 !important; }
-      .banner, #banner, #adHolder, #ad, #container, #viewport, #designContainer,
-      .gwd-page, .gwd-pagedeck, [id*="frame"], [class*="frame"],
-      [id*="slide"], [class*="slide"], .not-visible, .gwd-inactive,
-      .hidden, .js-bnfy { display: block !important; }
-      body { overflow: visible !important; margin: 0; padding: 0; }
-      html, body { width: 100%; height: 100%; }
-      /* Allow ISI to scroll — remove overflow clipping but keep positioning intact */
-      #outerMostDiv, #innerMostDiv, #isi-container, #isi-con,
-      [id*="isi"], [class*="isi"] { overflow: visible !important; }
-      #isi-controls, .scroller, .isiLineNoArrows, .scrollbar_bottom,
-      .knob, .knob-arrange, .scroller-container { display: none !important; }
-    </style></head>`)
+    // Strip CDN scripts that will fail to load — replace with local stubs or remove
+    // Only strip external CDN scripts, keep local scripts
+    html = html.replace(/<script[^>]*src=["'](https?:\/\/[^"']*(?:Enabler|enabler)[^"']*)["'][^>]*><\/script>/gi, '<!-- Enabler.js stubbed above -->')
+    html = html.replace(/<script[^>]*src=["'](https?:\/\/[^"']*(?:webcomponents)[^"']*)["'][^>]*><\/script>/gi, '<!-- webcomponents not needed -->')
 
-    // Also strip inline visibility:hidden and display:none from style attributes
-    html = html.replace(/style="[^"]*visibility:\s*hidden[^"]*"/gi, function(match) {
-      return match.replace(/visibility:\s*hidden\s*;?/gi, 'visibility:visible;')
-    })
-    html = html.replace(/style="[^"]*display:\s*none[^"]*"/gi, function(match) {
-      return match.replace(/display:\s*none\s*;?/gi, 'display:block;')
-    })
+    // Keep GSAP/TweenMax/jQuery CDN scripts — they'll load and run the animation
+    // Keep local scripts — they contain the ad's layout and animation logic
 
     return html
   }, [htmlContent, files])
