@@ -49,6 +49,15 @@ function ClickZoneToolPreview() {
     html = html.replace(/onclick="[^"]*"/gi, 'onclick="event.preventDefault()"')
     html = html.replace(/onclick='[^']*'/gi, "onclick='event.preventDefault()'")
 
+    // Strip external script tags — we don't need animation/click JS for the click zone preview
+    // This prevents errors from AppHost, GSAP CDN, Enabler.js, etc.
+    html = html.replace(/<script[^>]*src=["'][^"']*["'][^>]*><\/script>/gi, '<!-- script removed for preview -->')
+    // Strip inline scripts (except style-related ones)
+    html = html.replace(/<script(?![^>]*type=["']text\/css["'])[^>]*>[\s\S]*?<\/script>/gi, '<!-- script removed for preview -->')
+
+    // Make sure all elements are visible (some ads hide content until JS runs)
+    html = html.replace(/<\/head>/i, '<style>* { visibility: visible !important; } .banner, #banner, #adHolder, #ad, #container, #viewport, #designContainer { display: block !important; }</style></head>')
+
     return html
   }, [htmlContent, files])
 
