@@ -1948,7 +1948,7 @@ function buildManualTasksList(result, html, adJs) {
       priority: 'critical',
       title: 'MANUAL REBUILD REQUIRED: Google Ad Manager / DoubleClick Ad',
       description: 'This ad uses Enabler.js (Google Ad Manager/DoubleClick Studio). Enabler.exit() click handlers and studio events do NOT work on IXR devices.',
-      action: '1) Remove Enabler.js script, 2) Replace Enabler.exit() calls with appHost.openExternalLinkFull() or appHost.requestPDFView(), 3) Remove studio.events listeners, 4) Add proper click zones with appHost handlers'
+      action: '1) Remove Enabler.js script, 2) Replace Enabler.exit() calls with appHost.requestFullscreenBrowserView() or appHost.requestPDFView(), 3) Remove studio.events listeners, 4) Add proper click zones with appHost handlers'
     })
   }
 
@@ -2123,7 +2123,7 @@ function buildManualTasksList(result, html, adJs) {
       priority: 'high',
       title: 'Convert Image Maps to Click Zones',
       description: 'Found ' + areaMatches.length + ' image map area(s). HTML image maps (<map>/<area>) do not work reliably on IXR devices.',
-      action: '1) Remove <map> and <area> tags, 2) Create positioned div elements with class="invisibleButton" for each click zone, 3) Add click event handlers using appHost.openExternalLinkFull() or appHost.requestPDFView()'
+      action: '1) Remove <map> and <area> tags, 2) Create positioned div elements with class="invisibleButton" for each click zone, 3) Add click event handlers using appHost.requestFullscreenBrowserView() or appHost.requestPDFView()'
     })
   }
 
@@ -4019,11 +4019,11 @@ function convertJavascriptVoidClicks(html, adJs) {
     var handlersJs = '\n// Click handlers converted from javascript:void() patterns\n'
     handlersJs += '$(document).ready(function () {\n\n'
     handlersJs += '    //External Link\n'
-    handlersJs += '    function openExternalLinkFull(e, clickTag) {\n'
+    handlersJs += '    function openExternalLinkFull(e, linkUrl) {\n'
     handlersJs += '        if (typeof appHost !== \'undefined\') {\n'
-    handlersJs += '            appHost.openExternalLinkFull(clickTag);\n'
+    handlersJs += '            appHost.requestFullscreenBrowserView(linkUrl);\n'
     handlersJs += '        } else {\n'
-    handlersJs += '            window.open(clickTag);\n'
+    handlersJs += '            window.open(linkUrl);\n'
     handlersJs += '        }\n'
     handlersJs += '    }\n\n'
     handlersJs += '    //External PDF\n'
@@ -4123,11 +4123,11 @@ function convertInlineOnclickHandlers(html, adJs) {
     var handlersJs = '\n// Click handlers converted from inline onclick patterns\n'
     handlersJs += '$(document).ready(function () {\n\n'
     handlersJs += '    //External Link\n'
-    handlersJs += '    function openExternalLinkFull(e, clickTag) {\n'
+    handlersJs += '    function openExternalLinkFull(e, linkUrl) {\n'
     handlersJs += '        if (typeof appHost !== \'undefined\') {\n'
-    handlersJs += '            appHost.openExternalLinkFull(clickTag);\n'
+    handlersJs += '            appHost.requestFullscreenBrowserView(linkUrl);\n'
     handlersJs += '        } else {\n'
-    handlersJs += '            window.open(clickTag);\n'
+    handlersJs += '            window.open(linkUrl);\n'
     handlersJs += '        }\n'
     handlersJs += '    }\n\n'
     handlersJs += '    //External PDF\n'
@@ -4318,11 +4318,11 @@ function convertExitsHandlers(html, adJs) {
     var handlersJs = '\n// Click handlers converted from exits(event) pattern\n'
     handlersJs += '$(document).ready(function () {\n\n'
     handlersJs += '    //External Link\n'
-    handlersJs += '    function openExternalLinkFull(e, clickTag) {\n'
+    handlersJs += '    function openExternalLinkFull(e, linkUrl) {\n'
     handlersJs += '        if (typeof appHost !== \'undefined\') {\n'
-    handlersJs += '            appHost.openExternalLinkFull(clickTag);\n'
+    handlersJs += '            appHost.requestFullscreenBrowserView(linkUrl);\n'
     handlersJs += '        } else {\n'
-    handlersJs += '            window.open(clickTag);\n'
+    handlersJs += '            window.open(linkUrl);\n'
     handlersJs += '        }\n'
     handlersJs += '    }\n\n'
     handlersJs += '    //External PDF\n'
@@ -4454,11 +4454,11 @@ function convertAnchorHrefLinks(html, adJs, jsFolder) {
     var handlersJs = '\n// Click handlers converted from <a href> links\n'
     handlersJs += '$(document).ready(function () {\n\n'
     handlersJs += '    //External Link\n'
-    handlersJs += '    function openExternalLinkFull(e, clickTag) {\n'
+    handlersJs += '    function openExternalLinkFull(e, linkUrl) {\n'
     handlersJs += '        if (typeof appHost !== \'undefined\') {\n'
-    handlersJs += '            appHost.openExternalLinkFull(clickTag);\n'
+    handlersJs += '            appHost.requestFullscreenBrowserView(linkUrl);\n'
     handlersJs += '        } else {\n'
-    handlersJs += '            window.open(clickTag);\n'
+    handlersJs += '            window.open(linkUrl);\n'
     handlersJs += '        }\n'
     handlersJs += '    }\n\n'
     handlersJs += '    //External PDF\n'
@@ -6242,11 +6242,11 @@ function convertWindowOpenInJS(js, adJs) {
   var adJsHasHandlers = adJs && /function\s+openExternalLinkFull/i.test(adJs)
   if (changes.length > 0 && !/function\s+openExternalLinkFull/i.test(result) && !adJsHasHandlers) {
     var helpers = '\n// Device-compatible click handler functions (auto-injected)\n'
-    helpers += 'function openExternalLinkFull(e, clickTag) {\n'
+    helpers += 'function openExternalLinkFull(e, linkUrl) {\n'
     helpers += '    if (typeof appHost !== \'undefined\') {\n'
-    helpers += '        appHost.openExternalLinkFull(clickTag);\n'
+    helpers += '        appHost.requestFullscreenBrowserView(linkUrl);\n'
     helpers += '    } else {\n'
-    helpers += '        window.open(clickTag);\n'
+    helpers += '        window.open(linkUrl);\n'
     helpers += '    }\n'
     helpers += '}\n'
     helpers += 'function openExternalPDF(e, pdfUrl) {\n'
