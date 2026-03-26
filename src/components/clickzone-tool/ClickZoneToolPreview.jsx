@@ -27,21 +27,23 @@ function ClickZoneToolPreview() {
     // Replace asset paths with data URLs
     for (const [filename, file] of Object.entries(files)) {
       if (!file.dataUrl) continue
-      // Match various path patterns: ./assets/foo.png, assets/foo.png, ../assets/foo.png
       const basename = filename.split('/').pop()
-      const patterns = [
-        `./assets/${basename}`,
-        `assets/${basename}`,
-        `../assets/${basename}`,
-        `./${filename}`,
-        filename
-      ]
+      // Build all possible path variations the HTML might reference
+      const patterns = [basename]
+      // Add with each parent folder: img/bg.jpg, ./img/bg.jpg, images/bg.jpg, etc.
+      const parts = filename.split('/')
+      for (let i = 0; i < parts.length; i++) {
+        const subpath = parts.slice(i).join('/')
+        if (subpath && !patterns.includes(subpath)) patterns.push(subpath)
+        if (subpath && !patterns.includes('./' + subpath)) patterns.push('./' + subpath)
+      }
       for (const pattern of patterns) {
         html = html.split(`src="${pattern}"`).join(`src="${file.dataUrl}"`)
-        html = html.split(`src='./${pattern}'`).join(`src='${file.dataUrl}'`)
+        html = html.split(`src='${pattern}'`).join(`src='${file.dataUrl}'`)
         html = html.split(`href="${pattern}"`).join(`href="${file.dataUrl}"`)
         html = html.split(`url("${pattern}")`).join(`url("${file.dataUrl}")`)
         html = html.split(`url('${pattern}')`).join(`url('${file.dataUrl}')`)
+        html = html.split(`url(${pattern})`).join(`url(${file.dataUrl})`)
       }
     }
 
@@ -55,8 +57,25 @@ function ClickZoneToolPreview() {
     // Strip inline scripts (except style-related ones)
     html = html.replace(/<script(?![^>]*type=["']text\/css["'])[^>]*>[\s\S]*?<\/script>/gi, '<!-- script removed for preview -->')
 
-    // Make sure all elements are visible (some ads hide content until JS runs)
-    html = html.replace(/<\/head>/i, '<style>* { visibility: visible !important; } .banner, #banner, #adHolder, #ad, #container, #viewport, #designContainer { display: block !important; }</style></head>')
+    // Force all elements visible — agencies hide content until JS runs via:
+    // visibility:hidden, display:none, opacity:0, autoAlpha (visibility+opacity)
+    html = html.replace(/<\/head>/i, `<style>
+      * { visibility: visible !important; opacity: 1 !important; }
+      .banner, #banner, #adHolder, #ad, #container, #viewport, #designContainer,
+      .gwd-page, .gwd-pagedeck, [id*="frame"], [class*="frame"],
+      [id*="slide"], [class*="slide"], .not-visible, .gwd-inactive,
+      .hidden, .js-bnfy { display: block !important; }
+      body { overflow: visible !important; margin: 0; padding: 0; }
+      html, body { width: 100%; height: 100%; }
+    </style></head>`)
+
+    // Also strip inline visibility:hidden and display:none from style attributes
+    html = html.replace(/style="[^"]*visibility:\s*hidden[^"]*"/gi, function(match) {
+      return match.replace(/visibility:\s*hidden\s*;?/gi, 'visibility:visible;')
+    })
+    html = html.replace(/style="[^"]*display:\s*none[^"]*"/gi, function(match) {
+      return match.replace(/display:\s*none\s*;?/gi, 'display:block;')
+    })
 
     return html
   }, [htmlContent, files])
