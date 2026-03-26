@@ -353,7 +353,7 @@ ${clickHandlers}
  */
 export function generateCSS(config) {
   return `* { margin: 0; padding: 0; box-sizing: border-box; }
-body { overflow: hidden; }
+body { margin: 0; padding: 0; }
 #container { position: absolute; width: ${config.dimensions.width}px; height: ${config.dimensions.height}px; overflow: hidden; background: white;}
 .background { position: absolute; top: 0; left: 0; }
 #clickTag1 { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: pointer; }
