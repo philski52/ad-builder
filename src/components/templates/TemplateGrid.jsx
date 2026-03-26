@@ -57,19 +57,8 @@ function TemplateGrid() {
               <p className="text-sm text-gray-500 mt-1">Guided wizard — answer a few questions and we'll set up the right template for you</p>
             </button>
 
-            {/* Import & Refactor */}
-            <div className="group p-8 bg-white rounded-xl border-2 border-gray-200 hover:border-green-500 hover:shadow-lg transition-all text-left">
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-              </div>
-              <div className="font-semibold text-gray-900 text-lg">Import & Refactor</div>
-              <p className="text-sm text-gray-500 mt-1">Upload an agency ZIP — auto-fix for device compatibility and export with AI context</p>
-              <div className="mt-4">
-                <ImportAdButton />
-              </div>
-            </div>
+            {/* Import & Refactor — drop zone card */}
+            <ImportAdButton dropZone />
           </div>
         </div>
       </div>
