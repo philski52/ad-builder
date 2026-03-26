@@ -217,7 +217,7 @@ export function generateHTML(template, config, assets, animations) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <meta name="ad.size" content="width=${config.dimensions.width},height=${config.dimensions.height}">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <title>Ad</title>
+    <title></title>
     <script>  var appHost = window.appHost = new window.top.AppHost(this);<\/script>
     <script src="https://code.jquery.com/jquery-2.1.4.min.js"><\/script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/2.0.1/TweenMax.min.js"><\/script>
@@ -255,7 +255,7 @@ export function generateHTML(template, config, assets, animations) {
     </div>
     ${hasBgVideo ? `<script src="script/bg-video.js"><\/script>` : ''}
     <script src="script/ad.js"><\/script>
-    <script src="script/scroller.js"><\/script>
+    ${hasISI ? `<script src="script/scroller.js"><\/script>` : `<!-- <script src="script/scroller.js"><\/script> -->`}
     ${hasExpandable ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"><\/script>
     <script src="script/expandCollapse.js"><\/script>` : ''}
     ${animationScript ? `<script>${animationScript}<\/script>` : ''}
