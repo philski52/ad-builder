@@ -171,11 +171,20 @@ function ClickZoneToolPreview() {
       '  if(e.data&&e.data.type==="injectISIZones"){' +
       '    document.querySelectorAll(".czt-isi-zone").forEach(function(z){z.remove();});' +
       '    var zones=e.data.zones;if(!zones||!zones.length)return;' +
-      '    // Find ISI container — try IDs first, then classes, then any element with isi in id/class' +
-      '    var ids=["innerMostDiv","isi-content-wrapper","isi-copy","isi","isi-container","isi-con","isi_container","scrollbar1","outerMostDiv"];' +
+      '    // Find ISI container — prioritized search: standard first, then agency patterns, then wildcard' +
       '    var target=null;' +
-      '    for(var i=0;i<ids.length;i++){target=document.getElementById(ids[i]);if(target)break;}' +
-      '    if(!target){var all=document.querySelectorAll("[id*=isi],[class*=isi]");if(all.length)target=all[all.length-1];}' +
+      '    // 1. Standard refactored pattern (most common for ads we process)' +
+      '    target=document.getElementById("innerMostDiv")||document.getElementById("outerMostDiv");' +
+      '    // 2. Common agency container IDs' +
+      '    if(!target){var ids=["isi-container","isi-con","isi-copy","isi_container","isi-content-wrapper","scrollbar1","scrollable_ssi","isi"];' +
+      '    for(var i=0;i<ids.length&&!target;i++){target=document.getElementById(ids[i]);}}' +
+      '    // 3. Common agency container classes' +
+      '    if(!target){var cls=["isi-content","isi-wrapper","isi-copy","ssiall","ssi_content","scrollbar-external"];' +
+      '    for(var j=0;j<cls.length&&!target;j++){var found=document.querySelector("."+cls[j]);if(found)target=found;}}' +
+      '    // 4. Wildcard — any element with isi in id or class' +
+      '    if(!target){var wild=document.querySelectorAll("[id*=isi],[id*=ISI],[class*=isi],[class*=ISI]");' +
+      '    if(wild.length){for(var k=wild.length-1;k>=0;k--){if(wild[k].offsetHeight>30){target=wild[k];break;}}}}' +
+      '    // 5. Last resort — body' +
       '    if(!target){target=document.body;}' +
       '    target.style.position="relative";' +
       '    zones.forEach(function(z){' +
