@@ -196,7 +196,9 @@ $(document).ready(function () {
         } else {
             theVideo.parentNode.appendChild(videoControls);
             theVideo.parentNode.appendChild(volumeControls);
-            appHost.requestVideoControls("videoId", needsVisibleControls);
+            if (typeof appHost !== 'undefined') {
+                appHost.requestVideoControls("videoId", needsVisibleControls);
+            }
         }
     }
 

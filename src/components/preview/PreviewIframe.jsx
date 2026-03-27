@@ -407,6 +407,7 @@ function PreviewIframe() {
 
   const handleIsiMouseDown = (e, mode) => {
     e.stopPropagation();
+    if (iframeRef.current) iframeRef.current.style.pointerEvents = 'none';
     setIsiSelected(true);
     setDragStart({
       x: e.clientX,
@@ -489,6 +490,8 @@ function PreviewIframe() {
     e.stopPropagation();
     const zones = config.clickZones || [];
     if (!zones[index]) return;
+    // Immediately disable iframe so mouseup can't escape to it before React re-renders
+    if (iframeRef.current) iframeRef.current.style.pointerEvents = 'none';
     setSelectedZoneIndex(index);
     setIsiSelected(false);
     const zone = zones[index];
@@ -615,6 +618,8 @@ function PreviewIframe() {
   const handleCombinedMouseUp = () => {
     handleMouseUp();
     handleZoneMouseUp();
+    // Restore iframe pointer events (React state will re-apply if still needed)
+    if (iframeRef.current) iframeRef.current.style.pointerEvents = '';
   };
 
   return (
@@ -673,7 +678,7 @@ function PreviewIframe() {
               transformOrigin: 'top left',
               border: 'none',
               pointerEvents:
-                isDragging || resizeMode || isZoneDragging || zoneResizeMode
+                isDragging || resizeMode || isZoneDragging || zoneResizeMode || selectedZoneIndex !== null || isiSelected
                   ? 'none'
                   : 'auto',
             }}
@@ -833,19 +838,19 @@ function PreviewIframe() {
             </div>
           )}
 
-          {/* Non-ISI Click Zone Overlays */}
+          {/* Click Zone Overlays */}
           {(config.clickZones || [])
-            .filter((z) => !z.inISI)
-            .filter((z) => !(hasVideo && z.id === 'clickTag1'))
-            .map((zone, idx) => {
+            .map((zone) => {
               const actualIndex = (config.clickZones || []).indexOf(zone);
               const isBeingDragged =
                 (isZoneDragging || zoneResizeMode) &&
                 selectedZoneIndex === actualIndex;
+              const isiTopOffset = zone.inISI ? (config.isiTop || 0) : 0;
+              const isiLeftOffset = zone.inISI ? (config.isiLeft || 0) : 0;
               const effectiveTop =
-                zone.top + (isBeingDragged ? zoneDragOffset.top : 0);
+                isiTopOffset + zone.top + (isBeingDragged ? zoneDragOffset.top : 0);
               const effectiveLeft =
-                zone.left + (isBeingDragged ? zoneDragOffset.left : 0);
+                isiLeftOffset + zone.left + (isBeingDragged ? zoneDragOffset.left : 0);
               const effectiveWidth =
                 zone.width + (isBeingDragged ? zoneDragOffset.width : 0);
               const effectiveHeight =
@@ -999,51 +1004,6 @@ function PreviewIframe() {
               );
             })}
 
-          {/* ISI Zone handles (positioned outside ISI container) */}
-          {(config.clickZones || [])
-            .filter((z) => z.inISI)
-            .map((zone, idx) => {
-              const actualIndex = (config.clickZones || []).indexOf(zone);
-              const isSelected = selectedZoneIndex === actualIndex;
-              const baseColor = '#10b981';
-
-              return (
-                <div
-                  key={zone.id + '-handle'}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedZoneIndex(actualIndex);
-                    setIsiSelected(false);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    left:
-                      ((config.isiLeft || 0) +
-                        (config.isiWidth || config.dimensions.width)) *
-                        scale +
-                      4,
-                    top: (config.isiTop + 4 + idx * 28) * scale,
-                    backgroundColor: isSelected
-                      ? baseColor
-                      : 'rgba(16, 185, 129, 0.8)',
-                    color: 'white',
-                    padding: '4px 8px',
-                    borderRadius: 4,
-                    fontSize: 10,
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                    whiteSpace: 'nowrap',
-                  }}
-                  title={`ISI Zone: ${zone.id} @ (${zone.left}, ${zone.top}) - Drag in preview`}
-                >
-                  {zone.id}{' '}
-                  <span style={{ opacity: 0.7, fontSize: 8 }}>
-                    ↓{zone.top}px
-                  </span>
-                </div>
-              );
-            })}
         </div>
       </DeviceSimulator>
 

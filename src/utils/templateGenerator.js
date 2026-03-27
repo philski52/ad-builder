@@ -160,15 +160,14 @@ export function generateHTML(template, config, assets, animations) {
     hasVideo && hasButtons && buttonCount > 0
       ? Array.from({ length: buttonCount }, (_, i) => {
           const btn = config.buttons[i] || {};
-          return `<div id="ctaButton${i + 1}" class="cta-button" justify-content="center" onclick="pauseVid();"><p>${btn.text || `Button ${i + 1}</p>`}</div>`;
+          return `<div id="ctaButton${i + 1}" class="cta-button" justify-content="center"><p>${btn.text || `Button ${i + 1}</p>`}</div>`;
         }).join('\n        ')
       : '';
 
   // Generate click zone HTML - non-ISI zones (go in container)
   const containerZonesHTML = clickZones
     .filter((z) => !z.inISI)
-    .filter((z) => !(hasVideo && z.id === 'clickTag1'))
-    .map((z) => `<div id="${z.id}" class="click-zone"></div>`)
+    .map((z) => `<div id="${z.id}" class="click-zone"${hasVideo ? ' onclick="pauseVid();"' : ''}></div>`)
     .join('\n        ');
 
   // Generate click zone HTML - ISI zones (go in innerMostDiv)
@@ -219,9 +218,9 @@ export function generateHTML(template, config, assets, animations) {
             : ''
         }
         ${hasVideo ? `<video id="videoId" autoplay width="100%" height="${config.videoHeight}" style="position:relative;${assets.video?.dataUrl ? '' : 'border-bottom:1px solid #808080;'}"><source src="${assets.video?.dataUrl ? 'assets/video.mp4' : ''}" type="video/mp4" /></video>` : ''}
-        <div class="buttons">
+        ${hasButtons && buttonCount > 0 ? `<div class="buttons">
           ${buttonsHTML}
-        </div>
+        </div>` : ''}
     </div>
     <script src="script/ad.js"><\/script>
     ${hasVideo && config.showVideoControls ? `<script src="controls/controls.js"><\/script>` : ''}
@@ -276,7 +275,8 @@ export function generateAdJS(config) {
       }
 
       return `        //${comment}
-        $('#${zone.id}')[0].addEventListener("click", function (e) {
+        var _el_${varName} = $('#${zone.id}')[0];
+        if (_el_${varName}) _el_${varName}.addEventListener("click", function (e) {
             ${handlerFn}
         }, false);`;
     })

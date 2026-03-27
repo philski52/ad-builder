@@ -116,7 +116,10 @@ export const useProjectStore = create(
             dimensions: template.dimensions,
             ...(hasISI ? isiDefaults : {}),
             // Reset click zones to match new dimensions
-            clickZones: [
+            // Video-only templates (no buttons) don't use click zones
+            clickZones: (template.features?.includes('video') && !template.features?.includes('buttons'))
+              ? []
+              : [
               {
                 id: 'clickTag1',
                 url: 'https://education.patientpoint.com/failsafe-page/',
@@ -124,10 +127,10 @@ export const useProjectStore = create(
                 jobId: '',
                 top: 0,
                 left: 0,
-                width: template.dimensions.width,
+                width: hasISI ? template.dimensions.width : 200,
                 height: hasISI
                   ? isiDefaults.isiTop
-                  : template.dimensions.height,
+                  : 50,
                 inISI: false,
               },
             ],
@@ -310,7 +313,7 @@ export const useProjectStore = create(
         config: state.config,
         isiContent: state.isiContent,
         animations: state.animations,
-        assets: state.assets,
+        // Assets (data URLs) are excluded — they can be 50-100MB and blow the 5MB localStorage limit
       }),
     },
   ),

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
 import { hasFeature } from '../../templates'
 
@@ -30,9 +31,9 @@ function ClickZonesEditor() {
       jobId: '',
       top: preset.id === 'clickTag1' ? 0 : 100,
       left: preset.id === 'clickTag1' ? 0 : 50,
-      width: preset.id === 'clickTag1' ? config.dimensions.width : 200,
-      height: preset.id === 'clickTag1' ? (config.isiTop || 600) : 30,
-      inISI: preset.id !== 'clickTag1'
+      width: preset.id === 'clickTag1' ? (hasISI ? config.dimensions.width : 200) : 200,
+      height: preset.id === 'clickTag1' ? (hasISI ? (config.isiTop || 600) : 50) : 30,
+      inISI: hasISI && preset.id !== 'clickTag1'
     } : {
       id: `zone-${Date.now()}`,
       url: 'https://',
@@ -61,6 +62,26 @@ function ClickZonesEditor() {
 
   const availablePresets = presetZones.filter(p => !zones.some(z => z.id === p.id))
 
+  // Local text state to avoid re-rendering the preview on every keystroke
+  // Keys are `${index}_${field}`. Cleared on blur after syncing to store.
+  const [localText, setLocalText] = useState({})
+
+  const getLocalText = (index, field, fallback) =>
+    localText[`${index}_${field}`] ?? fallback
+
+  const setLocal = (index, field, value) =>
+    setLocalText((prev) => ({ ...prev, [`${index}_${field}`]: value }))
+
+  const commitLocal = (index, field) => {
+    const key = `${index}_${field}`
+    if (localText[key] !== undefined) {
+      updateZone(index, field, localText[key])
+      setLocalText((prev) => { const next = { ...prev }; delete next[key]; return next })
+    }
+  }
+
+  const [localJobId, setLocalJobId] = useState(null)
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -78,8 +99,9 @@ function ClickZonesEditor() {
         </label>
         <input
           type="text"
-          value={config.jobId || ''}
-          onChange={(e) => updateConfig('jobId', e.target.value)}
+          value={localJobId ?? config.jobId ?? ''}
+          onChange={(e) => setLocalJobId(e.target.value)}
+          onBlur={(e) => { updateConfig('jobId', e.target.value); setLocalJobId(null) }}
           className="w-full px-3 py-2 border border-blue-300 rounded text-sm"
           placeholder="e.g., 1234"
         />
@@ -112,12 +134,13 @@ function ClickZonesEditor() {
       {/* Zone List */}
       <div className="space-y-3">
         {zones.map((zone, index) => (
-          <div key={zone.id + index} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+          <div key={index} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
             <div className="flex items-center justify-between mb-3">
               <input
                 type="text"
-                value={zone.id}
-                onChange={(e) => updateZone(index, 'id', e.target.value)}
+                value={getLocalText(index, 'id', zone.id)}
+                onChange={(e) => setLocal(index, 'id', e.target.value)}
+                onBlur={() => commitLocal(index, 'id')}
                 className="font-medium text-sm bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none"
               />
               <button
@@ -157,8 +180,9 @@ function ClickZonesEditor() {
                 </label>
                 <input
                   type="text"
-                  value={zone.url}
-                  onChange={(e) => updateZone(index, 'url', e.target.value)}
+                  value={getLocalText(index, 'url', zone.url)}
+                  onChange={(e) => setLocal(index, 'url', e.target.value)}
+                  onBlur={() => commitLocal(index, 'url')}
                   className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
                   placeholder={zone.linkType === 'mod' ? 'mod/index.html' : 'https://...'}
                 />
@@ -172,8 +196,9 @@ function ClickZonesEditor() {
                   </label>
                   <input
                     type="text"
-                    value={zone.jobId || ''}
-                    onChange={(e) => updateZone(index, 'jobId', e.target.value)}
+                    value={getLocalText(index, 'jobId', zone.jobId || '')}
+                    onChange={(e) => setLocal(index, 'jobId', e.target.value)}
+                    onBlur={() => commitLocal(index, 'jobId')}
                     className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
                     placeholder={`Uses global: ${config.jobId || '(not set)'}`}
                   />
