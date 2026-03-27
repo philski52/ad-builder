@@ -66,38 +66,107 @@ function ClickZoneToolPreview() {
 
       target.style.position = 'relative'
 
+      // Helper to report zone position back to parent
+      const reportZone = (el, idx) => {
+        window.postMessage({
+          type: 'isiZoneUpdate',
+          zoneIndex: idx,
+          top: parseInt(el.style.top) || 0,
+          left: parseInt(el.style.left) || 0,
+          width: parseInt(el.style.width) || 0,
+          height: parseInt(el.style.height) || 0
+        }, '*')
+      }
+
+      // Helper to add drag/resize behavior to a handle element
+      const addDragHandler = (handle, el, idx, mode) => {
+        handle.addEventListener('mousedown', function(ev) {
+          ev.preventDefault()
+          ev.stopPropagation()
+          var startX = ev.clientX, startY = ev.clientY
+          var sL = parseInt(el.style.left) || 0, sT = parseInt(el.style.top) || 0
+          var sW = parseInt(el.style.width) || 0, sH = parseInt(el.style.height) || 0
+
+          // Auto-scroll ISI container when dragging near edges
+          var scrollContainer = target.closest('#outerMostDiv') || target
+          var autoScrollId = null
+
+          function onMove(me) {
+            var dx = me.clientX - startX, dy = me.clientY - startY
+            if (mode === 'move') {
+              el.style.left = Math.max(0, sL + dx) + 'px'
+              el.style.top = Math.max(0, sT + dy) + 'px'
+            } else if (mode === 'right') {
+              el.style.width = Math.max(20, sW + dx) + 'px'
+            } else if (mode === 'bottom') {
+              el.style.height = Math.max(20, sH + dy) + 'px'
+            } else if (mode === 'left') {
+              var newW = Math.max(20, sW - dx)
+              el.style.left = Math.max(0, sL + (sW - newW)) + 'px'
+              el.style.width = newW + 'px'
+            } else if (mode === 'top') {
+              var newH = Math.max(20, sH - dy)
+              el.style.top = Math.max(0, sT + (sH - newH)) + 'px'
+              el.style.height = newH + 'px'
+            } else if (mode === 'bottom-right') {
+              el.style.width = Math.max(20, sW + dx) + 'px'
+              el.style.height = Math.max(20, sH + dy) + 'px'
+            }
+
+            // Auto-scroll when near container edges
+            if (scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight) {
+              var rect = scrollContainer.getBoundingClientRect()
+              if (autoScrollId) clearInterval(autoScrollId)
+              if (me.clientY > rect.bottom - 40) {
+                autoScrollId = setInterval(function() { scrollContainer.scrollTop += 8 }, 30)
+              } else if (me.clientY < rect.top + 40) {
+                autoScrollId = setInterval(function() { scrollContainer.scrollTop -= 8 }, 30)
+              }
+            }
+          }
+          function onUp() {
+            if (autoScrollId) clearInterval(autoScrollId)
+            doc.removeEventListener('mousemove', onMove)
+            doc.removeEventListener('mouseup', onUp)
+            reportZone(el, idx)
+          }
+          doc.addEventListener('mousemove', onMove)
+          doc.addEventListener('mouseup', onUp)
+        })
+      }
+
       isiZones.forEach(z => {
         const idx = clickZones.indexOf(z)
         const el = doc.createElement('div')
         el.className = 'czt-isi-zone'
         el.setAttribute('data-zone-index', idx)
         el.style.cssText = 'position:absolute;top:' + z.top + 'px;left:' + z.left + 'px;width:' + z.width + 'px;height:' + z.height + 'px;border:2px dashed rgba(16,185,129,0.8);background:rgba(16,185,129,0.15);box-sizing:border-box;cursor:grab;z-index:100;'
-        el.innerHTML = '<div style="position:absolute;top:2px;left:2px;background:#10b981;color:white;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:bold;white-space:nowrap;pointer-events:none;">' + z.id + '</div>'
 
-        // Drag support
-        el.addEventListener('mousedown', function(ev) {
-          ev.preventDefault()
-          ev.stopPropagation()
-          var startX = ev.clientX, startY = ev.clientY
-          var sL = parseInt(el.style.left) || 0, sT = parseInt(el.style.top) || 0
-          function onMove(me) {
-            el.style.left = Math.max(0, sL + me.clientX - startX) + 'px'
-            el.style.top = Math.max(0, sT + me.clientY - startY) + 'px'
-          }
-          function onUp() {
-            doc.removeEventListener('mousemove', onMove)
-            doc.removeEventListener('mouseup', onUp)
-            window.postMessage({
-              type: 'isiZoneUpdate',
-              zoneIndex: idx,
-              top: parseInt(el.style.top) || 0,
-              left: parseInt(el.style.left) || 0,
-              width: parseInt(el.style.width) || 0,
-              height: parseInt(el.style.height) || 0
-            }, '*')
-          }
-          doc.addEventListener('mousemove', onMove)
-          doc.addEventListener('mouseup', onUp)
+        // Label
+        var label = doc.createElement('div')
+        label.style.cssText = 'position:absolute;top:2px;left:2px;background:#10b981;color:white;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:bold;white-space:nowrap;pointer-events:none;'
+        label.textContent = z.id
+        el.appendChild(label)
+
+        // Move handle (full area)
+        var moveHandle = doc.createElement('div')
+        moveHandle.style.cssText = 'position:absolute;inset:0;cursor:grab;'
+        el.appendChild(moveHandle)
+        addDragHandler(moveHandle, el, idx, 'move')
+
+        // Resize handles
+        var handles = [
+          { mode: 'right', css: 'position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:ew-resize;' },
+          { mode: 'bottom', css: 'position:absolute;bottom:-4px;left:0;width:100%;height:8px;cursor:ns-resize;' },
+          { mode: 'left', css: 'position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:ew-resize;' },
+          { mode: 'top', css: 'position:absolute;top:-4px;left:0;width:100%;height:8px;cursor:ns-resize;' },
+          { mode: 'bottom-right', css: 'position:absolute;bottom:-4px;right:-4px;width:12px;height:12px;cursor:nwse-resize;background:#10b981;border-radius:2px;' }
+        ]
+        handles.forEach(function(h) {
+          var handle = doc.createElement('div')
+          handle.style.cssText = h.css
+          el.appendChild(handle)
+          addDragHandler(handle, el, idx, h.mode)
         })
 
         target.appendChild(el)
@@ -328,7 +397,7 @@ function ClickZoneToolPreview() {
     <div className="space-y-4">
       <div className="flex items-center gap-4 flex-wrap">
         <span className="text-sm text-gray-600">Scale:</span>
-        <input type="range" min="0.2" max="1" step="0.1" value={scale} onChange={e => setScale(parseFloat(e.target.value))} className="w-32" />
+        <input type="range" min="0.2" max="3" step="0.1" value={scale} onChange={e => setScale(parseFloat(e.target.value))} className="w-32" />
         <span className="text-sm text-gray-500">{Math.round(scale * 100)}%</span>
         <button onClick={() => setKey(k => k + 1)} className="ml-auto text-sm text-blue-600 hover:text-blue-800">
           Refresh Preview
