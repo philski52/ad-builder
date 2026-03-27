@@ -104,7 +104,7 @@ export async function exportClickZoneAd() {
 
     // Inject non-ISI click zone divs before </body>
     if (zoneHTML) {
-      html = html.replace('</body>', zoneHTML + '\n</body>')
+      html = html.replace(/<\/body>/i, zoneHTML + '\n</body>')
     }
 
     // Inject ISI click zone divs inside the ISI container
@@ -121,24 +121,28 @@ export async function exportClickZoneAd() {
       }
       // Fallback: put ISI zones before </body> too
       if (!isiInjected) {
-        html = html.replace('</body>', isiZoneHTML + '\n</body>')
+        html = html.replace(/<\/body>/i, isiZoneHTML + '\n</body>')
       }
     }
 
     // Add clicks.css link if not already present
     if (!html.includes('clicks.css')) {
-      html = html.replace('</head>', '    <link rel="stylesheet" href="' + clicksCssRelPath + '">\n</head>')
+      html = html.replace(/<\/head>/i, '    <link rel="stylesheet" href="' + clicksCssRelPath + '">\n</head>')
     }
 
-    // Add ad.js script if not already present
+    // Add ad.js script if not already present — replace existing or add new
     var hasAdJs = /src=["'][^"']*ad\.js["']/i.test(html)
+    if (hasAdJs) {
+      // Replace existing ad.js with our generated version
+      newZip.file(adJsZipPath, adJs)
+    }
     if (!hasAdJs) {
-      html = html.replace('</body>', '    <script src="' + adJsRelPath + '"></script>\n</body>')
+      html = html.replace(/<\/body>/i, '    <script src="' + adJsRelPath + '"></script>\n</body>')
     }
 
     // Add jQuery if not present
     if (!/jquery/i.test(html)) {
-      html = html.replace('</head>', '    <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>\n</head>')
+      html = html.replace(/<\/head>/i, '    <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>\n</head>')
     }
 
     newZip.file(htmlFile, html)

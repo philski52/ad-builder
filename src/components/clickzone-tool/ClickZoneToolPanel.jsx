@@ -84,7 +84,7 @@ function ClickZoneToolPanel() {
       <div className="space-y-3">
         {clickZones.map((zone, index) => (
           <div
-            key={zone.id + index}
+            key={'zone-' + index}
             className={`border rounded-lg p-3 cursor-pointer transition-colors ${
               selectedZoneIndex === index
                 ? 'border-blue-400 bg-blue-50'
