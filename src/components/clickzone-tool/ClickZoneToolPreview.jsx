@@ -106,15 +106,28 @@ function ClickZoneToolPreview() {
           var sL = parseInt(el.style.left) || 0, sT = parseInt(el.style.top) || 0
           var sW = parseInt(el.style.width) || 0, sH = parseInt(el.style.height) || 0
 
-          // Auto-scroll ISI container when dragging near edges
-          var scrollContainer = target.closest('#outerMostDiv') || target
+          var scrollContainer = innerDiv || target.closest('#outerMostDiv') || target
           var autoScrollId = null
+          var scrollOffset = 0 // Track cumulative scroll during drag
+
+          // Listen for wheel scroll while dragging — move zone with scroll
+          function onWheel(we) {
+            if (scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight) {
+              scrollContainer.scrollTop += we.deltaY
+              scrollOffset += we.deltaY
+              // Move/resize the zone to follow the scroll
+              if (mode === 'move') {
+                var curTop = parseInt(el.style.top) || 0
+                el.style.top = Math.max(0, curTop + we.deltaY) + 'px'
+              }
+            }
+          }
 
           function onMove(me) {
             var dx = me.clientX - startX, dy = me.clientY - startY
             if (mode === 'move') {
               el.style.left = Math.max(0, sL + dx) + 'px'
-              el.style.top = Math.max(0, sT + dy) + 'px'
+              el.style.top = Math.max(0, sT + dy + scrollOffset) + 'px'
             } else if (mode === 'right') {
               el.style.width = Math.max(20, sW + dx) + 'px'
             } else if (mode === 'bottom') {
@@ -132,15 +145,30 @@ function ClickZoneToolPreview() {
               el.style.height = Math.max(20, sH + dy) + 'px'
             }
 
-            // Auto-scroll ISI when dragging near edges
-            var scEl = innerDiv || scrollContainer
-            if (scEl && scEl.scrollHeight > scEl.clientHeight) {
-              var rect = scEl.getBoundingClientRect()
+            // Auto-scroll ISI when dragging near edges (gentle)
+            if (scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight) {
+              var rect = scrollContainer.getBoundingClientRect()
               if (autoScrollId) clearInterval(autoScrollId)
-              if (me.clientY > rect.bottom - 50) {
-                autoScrollId = setInterval(function() { scEl.scrollTop += 10 }, 25)
-              } else if (me.clientY < rect.top + 50) {
-                autoScrollId = setInterval(function() { scEl.scrollTop = Math.max(0, scEl.scrollTop - 10) }, 25)
+              if (me.clientY > rect.bottom - 30) {
+                autoScrollId = setInterval(function() {
+                  scrollContainer.scrollTop += 3
+                  scrollOffset += 3
+                  if (mode === 'move') {
+                    var ct = parseInt(el.style.top) || 0
+                    el.style.top = (ct + 3) + 'px'
+                  }
+                }, 50)
+              } else if (me.clientY < rect.top + 30) {
+                autoScrollId = setInterval(function() {
+                  if (scrollContainer.scrollTop > 0) {
+                    scrollContainer.scrollTop -= 3
+                    scrollOffset -= 3
+                    if (mode === 'move') {
+                      var ct = parseInt(el.style.top) || 0
+                      el.style.top = Math.max(0, ct - 3) + 'px'
+                    }
+                  }
+                }, 50)
               }
             }
           }
@@ -148,10 +176,12 @@ function ClickZoneToolPreview() {
             if (autoScrollId) clearInterval(autoScrollId)
             doc.removeEventListener('mousemove', onMove)
             doc.removeEventListener('mouseup', onUp)
+            doc.removeEventListener('wheel', onWheel)
             reportZone(el, idx)
           }
           doc.addEventListener('mousemove', onMove)
           doc.addEventListener('mouseup', onUp)
+          doc.addEventListener('wheel', onWheel, { passive: true })
         })
       }
 
