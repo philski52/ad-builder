@@ -167,6 +167,17 @@ function ClickZoneToolPanel() {
                 </div>
               )}
 
+              {/* In ISI toggle */}
+              <label className="flex items-center gap-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={zone.inISI || false}
+                  onChange={(e) => updateZone(index, 'inISI', e.target.checked)}
+                  className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                />
+                <span className="text-xs text-gray-600">In ISI <span className="text-gray-400">(place inside scrollable ISI content)</span></span>
+              </label>
+
               {/* Position & Size */}
               <div className="grid grid-cols-4 gap-2">
                 <div>

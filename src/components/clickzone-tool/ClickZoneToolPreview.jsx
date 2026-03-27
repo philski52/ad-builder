@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { useClickZoneToolStore } from '../../stores/clickZoneToolStore'
 
 function ClickZoneToolPreview() {
@@ -12,6 +12,22 @@ function ClickZoneToolPreview() {
 
   const [scale, setScale] = useState(0.4)
   const [key, setKey] = useState(0)
+
+  // Listen for ISI zone position updates from the iframe
+  useEffect(() => {
+    const handleMessage = (e) => {
+      if (e.data && e.data.type === 'isiZoneUpdate') {
+        updateZonePosition(e.data.zoneIndex, {
+          top: e.data.top,
+          left: e.data.left,
+          width: e.data.width,
+          height: e.data.height
+        })
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [updateZonePosition])
 
   // Drag/resize state — reuses same pattern as PreviewIframe non-ISI zones
   const [isZoneDragging, setIsZoneDragging] = useState(false)
@@ -125,8 +141,72 @@ function ClickZoneToolPreview() {
     // Keep GSAP/TweenMax/jQuery CDN scripts — they'll load and run the animation
     // Keep local scripts — they contain the ad's layout and animation logic
 
+    // Inject ISI click zones inside the ISI container so they scroll with content
+    const isiZones = clickZones.filter(z => z.inISI)
+    if (isiZones.length > 0) {
+      const zoneIndicatorsHTML = isiZones.map(function(z) {
+        const actualIndex = clickZones.indexOf(z)
+        return '<div class="czt-isi-zone" data-zone-index="' + actualIndex + '" ' +
+          'style="position:absolute; top:' + z.top + 'px; left:' + z.left + 'px; width:' + z.width + 'px; height:' + z.height + 'px; ' +
+          'border:2px dashed rgba(16,185,129,0.8); background:rgba(16,185,129,0.15); box-sizing:border-box; cursor:grab; z-index:100;">' +
+          '<div style="position:absolute; top:2px; left:2px; background:#10b981; color:white; padding:2px 6px; border-radius:3px; font-size:9px; font-weight:bold; white-space:nowrap; pointer-events:none;">' + z.id + '</div>' +
+          '<div data-resize="move" style="position:absolute; inset:0; cursor:grab;"></div>' +
+          '<div data-resize="right" style="position:absolute; top:0; right:-4px; width:8px; height:100%; cursor:ew-resize;"></div>' +
+          '<div data-resize="bottom" style="position:absolute; bottom:-4px; left:0; width:100%; height:8px; cursor:ns-resize;"></div>' +
+          '<div data-resize="bottom-right" style="position:absolute; bottom:-4px; right:-4px; width:12px; height:12px; cursor:nwse-resize; background:#10b981; border-radius:2px;"></div>' +
+          '</div>'
+      }).join('')
+
+      // Try to inject inside ISI containers (various patterns)
+      var injected = false
+      var isiContainers = ['#innerMostDiv', '#isi-content-wrapper', '#isi-copy', '#isi', '#isi-container', '#isi-con']
+      for (var ci = 0; ci < isiContainers.length && !injected; ci++) {
+        var sel = isiContainers[ci]
+        var idName = sel.replace('#', '')
+        var pattern = new RegExp('(<[^>]*id=["\']' + idName + '["\'][^>]*>)', 'i')
+        if (pattern.test(html)) {
+          html = html.replace(pattern, '$1<div style="position:relative;">' + zoneIndicatorsHTML + '</div>')
+          injected = true
+        }
+      }
+
+      // Add drag/resize script for ISI zones
+      var isiDragScript = '<script>' +
+        '(function(){' +
+        'var active=null,mode=null,startX=0,startY=0,startLeft=0,startTop=0,startWidth=0,startHeight=0;' +
+        'document.querySelectorAll(".czt-isi-zone [data-resize]").forEach(function(h){' +
+        '  h.addEventListener("mousedown",function(e){' +
+        '    e.preventDefault();e.stopPropagation();' +
+        '    var el=h.closest(".czt-isi-zone");if(!el)return;' +
+        '    active=el;mode=h.getAttribute("data-resize");' +
+        '    startX=e.clientX;startY=e.clientY;' +
+        '    startLeft=parseInt(el.style.left)||0;startTop=parseInt(el.style.top)||0;' +
+        '    startWidth=parseInt(el.style.width)||0;startHeight=parseInt(el.style.height)||0;' +
+        '  });' +
+        '});' +
+        'document.addEventListener("mousemove",function(e){' +
+        '  if(!active)return;e.preventDefault();' +
+        '  var dx=e.clientX-startX,dy=e.clientY-startY;' +
+        '  if(mode==="move"){active.style.left=Math.max(0,startLeft+dx)+"px";active.style.top=Math.max(0,startTop+dy)+"px";}' +
+        '  else if(mode==="right"){active.style.width=Math.max(20,startWidth+dx)+"px";}' +
+        '  else if(mode==="bottom"){active.style.height=Math.max(20,startHeight+dy)+"px";}' +
+        '  else if(mode==="bottom-right"){active.style.width=Math.max(20,startWidth+dx)+"px";active.style.height=Math.max(20,startHeight+dy)+"px";}' +
+        '});' +
+        'document.addEventListener("mouseup",function(){' +
+        '  if(!active)return;' +
+        '  var idx=parseInt(active.getAttribute("data-zone-index"));' +
+        '  window.parent.postMessage({type:"isiZoneUpdate",zoneIndex:idx,' +
+        '    top:parseInt(active.style.top)||0,left:parseInt(active.style.left)||0,' +
+        '    width:parseInt(active.style.width)||0,height:parseInt(active.style.height)||0},"*");' +
+        '  active=null;' +
+        '});' +
+        '})();' +
+        '<\/script>'
+      html = html.replace('</body>', isiDragScript + '</body>')
+    }
+
     return html
-  }, [htmlContent, files])
+  }, [htmlContent, files, clickZones])
 
   // Zone mouse handlers — same pattern as PreviewIframe
   const handleZoneMouseDown = (e, index, mode) => {
@@ -263,8 +343,9 @@ function ClickZoneToolPreview() {
               sandbox="allow-scripts allow-same-origin"
             />
 
-            {/* Click Zone Overlays — same pattern as PreviewIframe non-ISI zones */}
-            {clickZones.map((zone, idx) => {
+            {/* Click Zone Overlays — non-ISI zones only (ISI zones are inside the iframe) */}
+            {clickZones.filter(z => !z.inISI).map((zone, idx) => {
+              idx = clickZones.indexOf(zone) // use actual index, not filtered index
               const isBeingDragged = (isZoneDragging || zoneResizeMode) && selectedZoneIndex === idx
               const effectiveTop = zone.top + (isBeingDragged ? zoneDragOffset.top : 0)
               const effectiveLeft = zone.left + (isBeingDragged ? zoneDragOffset.left : 0)
