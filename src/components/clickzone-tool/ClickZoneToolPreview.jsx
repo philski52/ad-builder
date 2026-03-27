@@ -66,6 +66,25 @@ function ClickZoneToolPreview() {
 
       target.style.position = 'relative'
 
+      // Make ISI containers scrollable so user can scroll to place zones
+      // The scroller.js is stubbed, so we need native overflow scroll
+      var outerDiv = doc.getElementById('outerMostDiv')
+      var innerDiv = doc.getElementById('innerMostDiv')
+      if (innerDiv) {
+        innerDiv.style.overflowY = 'auto'
+        innerDiv.style.overflowX = 'hidden'
+      }
+      if (outerDiv && !innerDiv) {
+        outerDiv.style.overflowY = 'auto'
+        outerDiv.style.overflowX = 'hidden'
+      }
+      // Also try agency patterns
+      var isiCon = doc.getElementById('isi-container') || doc.getElementById('isi-con') || doc.getElementById('isi_container')
+      if (isiCon && !innerDiv) {
+        isiCon.style.overflowY = 'auto'
+        isiCon.style.overflowX = 'hidden'
+      }
+
       // Helper to report zone position back to parent
       const reportZone = (el, idx) => {
         window.postMessage({
@@ -113,14 +132,15 @@ function ClickZoneToolPreview() {
               el.style.height = Math.max(20, sH + dy) + 'px'
             }
 
-            // Auto-scroll when near container edges
-            if (scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight) {
-              var rect = scrollContainer.getBoundingClientRect()
+            // Auto-scroll ISI when dragging near edges
+            var scEl = innerDiv || scrollContainer
+            if (scEl && scEl.scrollHeight > scEl.clientHeight) {
+              var rect = scEl.getBoundingClientRect()
               if (autoScrollId) clearInterval(autoScrollId)
-              if (me.clientY > rect.bottom - 40) {
-                autoScrollId = setInterval(function() { scrollContainer.scrollTop += 8 }, 30)
-              } else if (me.clientY < rect.top + 40) {
-                autoScrollId = setInterval(function() { scrollContainer.scrollTop -= 8 }, 30)
+              if (me.clientY > rect.bottom - 50) {
+                autoScrollId = setInterval(function() { scEl.scrollTop += 10 }, 25)
+              } else if (me.clientY < rect.top + 50) {
+                autoScrollId = setInterval(function() { scEl.scrollTop = Math.max(0, scEl.scrollTop - 10) }, 25)
               }
             }
           }
