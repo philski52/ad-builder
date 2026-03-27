@@ -30,26 +30,88 @@ function ClickZoneToolPreview() {
     return () => window.removeEventListener('message', handleMessage)
   }, [updateZonePosition])
 
-  // Send ISI zones to iframe when they change (without rebuilding the HTML)
-  const sendISIZones = () => {
-    const isiZones = clickZones.filter(z => z.inISI).map(z => ({
-      index: clickZones.indexOf(z),
-      id: z.id,
-      top: z.top,
-      left: z.left,
-      width: z.width,
-      height: z.height
-    }))
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      iframeRef.current.contentWindow.postMessage({ type: 'injectISIZones', zones: isiZones }, '*')
+  // Inject ISI zones directly into iframe DOM (more reliable than postMessage)
+  const injectISIZones = () => {
+    try {
+      const iframe = iframeRef.current
+      if (!iframe || !iframe.contentDocument) return
+
+      const doc = iframe.contentDocument
+
+      // Remove old zones
+      doc.querySelectorAll('.czt-isi-zone').forEach(z => z.remove())
+
+      const isiZones = clickZones.filter(z => z.inISI)
+      if (isiZones.length === 0) return
+
+      // Find ISI container — prioritized search
+      let target = null
+      const ids = ['innerMostDiv', 'outerMostDiv', 'isi-container', 'isi-con', 'isi-copy', 'isi_container', 'isi-content-wrapper', 'scrollbar1', 'scrollable_ssi', 'isi']
+      for (let i = 0; i < ids.length && !target; i++) {
+        target = doc.getElementById(ids[i])
+      }
+      if (!target) {
+        const cls = ['isi-content', 'isi-wrapper', 'isi-copy', 'ssiall', 'ssi_content']
+        for (let j = 0; j < cls.length && !target; j++) {
+          target = doc.querySelector('.' + cls[j])
+        }
+      }
+      if (!target) {
+        const wild = doc.querySelectorAll('[id*="isi"],[id*="ISI"],[class*="isi"],[class*="ISI"]')
+        for (let k = wild.length - 1; k >= 0 && !target; k--) {
+          if (wild[k].offsetHeight > 30) target = wild[k]
+        }
+      }
+      if (!target) target = doc.body
+
+      target.style.position = 'relative'
+
+      isiZones.forEach(z => {
+        const idx = clickZones.indexOf(z)
+        const el = doc.createElement('div')
+        el.className = 'czt-isi-zone'
+        el.setAttribute('data-zone-index', idx)
+        el.style.cssText = 'position:absolute;top:' + z.top + 'px;left:' + z.left + 'px;width:' + z.width + 'px;height:' + z.height + 'px;border:2px dashed rgba(16,185,129,0.8);background:rgba(16,185,129,0.15);box-sizing:border-box;cursor:grab;z-index:100;'
+        el.innerHTML = '<div style="position:absolute;top:2px;left:2px;background:#10b981;color:white;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:bold;white-space:nowrap;pointer-events:none;">' + z.id + '</div>'
+
+        // Drag support
+        el.addEventListener('mousedown', function(ev) {
+          ev.preventDefault()
+          ev.stopPropagation()
+          var startX = ev.clientX, startY = ev.clientY
+          var sL = parseInt(el.style.left) || 0, sT = parseInt(el.style.top) || 0
+          function onMove(me) {
+            el.style.left = Math.max(0, sL + me.clientX - startX) + 'px'
+            el.style.top = Math.max(0, sT + me.clientY - startY) + 'px'
+          }
+          function onUp() {
+            doc.removeEventListener('mousemove', onMove)
+            doc.removeEventListener('mouseup', onUp)
+            window.postMessage({
+              type: 'isiZoneUpdate',
+              zoneIndex: idx,
+              top: parseInt(el.style.top) || 0,
+              left: parseInt(el.style.left) || 0,
+              width: parseInt(el.style.width) || 0,
+              height: parseInt(el.style.height) || 0
+            }, '*')
+          }
+          doc.addEventListener('mousemove', onMove)
+          doc.addEventListener('mouseup', onUp)
+        })
+
+        target.appendChild(el)
+      })
+    } catch (err) {
+      // Cross-origin or iframe not ready — silently ignore
     }
   }
 
   useEffect(() => {
-    // Try multiple times — the iframe and its scripts need time to load
-    const t1 = setTimeout(sendISIZones, 300)
-    const t2 = setTimeout(sendISIZones, 800)
-    const t3 = setTimeout(sendISIZones, 1500)
+    // Retry injection — iframe needs time to load and render
+    const t1 = setTimeout(injectISIZones, 500)
+    const t2 = setTimeout(injectISIZones, 1500)
+    const t3 = setTimeout(injectISIZones, 3000)
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [clickZones])
 
@@ -165,48 +227,8 @@ function ClickZoneToolPreview() {
     // Keep GSAP/TweenMax/jQuery CDN scripts — they'll load and run the animation
     // Keep local scripts — they contain the ad's layout and animation logic
 
-    // Inject ISI zone management script — zones are added/updated via postMessage, not HTML rebuild
-    var isiScript = '<script>' +
-      'window.addEventListener("message",function(e){' +
-      '  if(e.data&&e.data.type==="injectISIZones"){' +
-      '    document.querySelectorAll(".czt-isi-zone").forEach(function(z){z.remove();});' +
-      '    var zones=e.data.zones;if(!zones||!zones.length)return;' +
-      '    // Find ISI container — prioritized search: standard first, then agency patterns, then wildcard' +
-      '    var target=null;' +
-      '    // 1. Standard refactored pattern (most common for ads we process)' +
-      '    target=document.getElementById("innerMostDiv")||document.getElementById("outerMostDiv");' +
-      '    // 2. Common agency container IDs' +
-      '    if(!target){var ids=["isi-container","isi-con","isi-copy","isi_container","isi-content-wrapper","scrollbar1","scrollable_ssi","isi"];' +
-      '    for(var i=0;i<ids.length&&!target;i++){target=document.getElementById(ids[i]);}}' +
-      '    // 3. Common agency container classes' +
-      '    if(!target){var cls=["isi-content","isi-wrapper","isi-copy","ssiall","ssi_content","scrollbar-external"];' +
-      '    for(var j=0;j<cls.length&&!target;j++){var found=document.querySelector("."+cls[j]);if(found)target=found;}}' +
-      '    // 4. Wildcard — any element with isi in id or class' +
-      '    if(!target){var wild=document.querySelectorAll("[id*=isi],[id*=ISI],[class*=isi],[class*=ISI]");' +
-      '    if(wild.length){for(var k=wild.length-1;k>=0;k--){if(wild[k].offsetHeight>30){target=wild[k];break;}}}}' +
-      '    // 5. Last resort — body' +
-      '    if(!target){target=document.body;}' +
-      '    target.style.position="relative";' +
-      '    zones.forEach(function(z){' +
-      '      var el=document.createElement("div");el.className="czt-isi-zone";el.setAttribute("data-zone-index",z.index);' +
-      '      el.style.cssText="position:absolute;top:"+z.top+"px;left:"+z.left+"px;width:"+z.width+"px;height:"+z.height+"px;border:2px dashed rgba(16,185,129,0.8);background:rgba(16,185,129,0.15);box-sizing:border-box;cursor:grab;z-index:100;";' +
-      '      el.innerHTML=\'<div style="position:absolute;top:2px;left:2px;background:#10b981;color:white;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:bold;white-space:nowrap;pointer-events:none;">\'+z.id+\'</div>\';' +
-      '      target.appendChild(el);' +
-      '      // Drag support' +
-      '      el.addEventListener("mousedown",function(ev){' +
-      '        ev.preventDefault();ev.stopPropagation();' +
-      '        var startX=ev.clientX,startY=ev.clientY,sL=parseInt(el.style.left)||0,sT=parseInt(el.style.top)||0;' +
-      '        function onMove(me){var dx=me.clientX-startX,dy=me.clientY-startY;el.style.left=Math.max(0,sL+dx)+"px";el.style.top=Math.max(0,sT+dy)+"px";}' +
-      '        function onUp(){document.removeEventListener("mousemove",onMove);document.removeEventListener("mouseup",onUp);' +
-      '          window.parent.postMessage({type:"isiZoneUpdate",zoneIndex:parseInt(el.getAttribute("data-zone-index")),top:parseInt(el.style.top)||0,left:parseInt(el.style.left)||0,width:parseInt(el.style.width)||0,height:parseInt(el.style.height)||0},"*");' +
-      '        }' +
-      '        document.addEventListener("mousemove",onMove);document.addEventListener("mouseup",onUp);' +
-      '      });' +
-      '    });' +
-      '  }' +
-      '});' +
-      '<\/script>'
-    html = html.replace('</body>', isiScript + '</body>')
+    // ISI zone injection is handled directly via iframe DOM access (see injectISIZones effect)
+    // No script injection needed in the HTML
 
     return html
   }, [htmlContent, files])
