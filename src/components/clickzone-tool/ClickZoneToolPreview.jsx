@@ -12,6 +12,7 @@ function ClickZoneToolPreview() {
 
   const [scale, setScale] = useState(0.4)
   const [key, setKey] = useState(0)
+  const iframeRef = useRef(null)
 
   // Listen for ISI zone position updates from the iframe
   useEffect(() => {
@@ -28,6 +29,25 @@ function ClickZoneToolPreview() {
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
   }, [updateZonePosition])
+
+  // Send ISI zones to iframe when they change (without rebuilding the HTML)
+  useEffect(() => {
+    const isiZones = clickZones.filter(z => z.inISI).map(z => ({
+      index: clickZones.indexOf(z),
+      id: z.id,
+      top: z.top,
+      left: z.left,
+      width: z.width,
+      height: z.height
+    }))
+    // Small delay to let iframe load
+    const timer = setTimeout(() => {
+      if (iframeRef.current && iframeRef.current.contentWindow) {
+        iframeRef.current.contentWindow.postMessage({ type: 'injectISIZones', zones: isiZones }, '*')
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [clickZones])
 
   // Drag/resize state — reuses same pattern as PreviewIframe non-ISI zones
   const [isZoneDragging, setIsZoneDragging] = useState(false)
@@ -141,72 +161,42 @@ function ClickZoneToolPreview() {
     // Keep GSAP/TweenMax/jQuery CDN scripts — they'll load and run the animation
     // Keep local scripts — they contain the ad's layout and animation logic
 
-    // Inject ISI click zones inside the ISI container so they scroll with content
-    const isiZones = clickZones.filter(z => z.inISI)
-    if (isiZones.length > 0) {
-      const zoneIndicatorsHTML = isiZones.map(function(z) {
-        const actualIndex = clickZones.indexOf(z)
-        return '<div class="czt-isi-zone" data-zone-index="' + actualIndex + '" ' +
-          'style="position:absolute; top:' + z.top + 'px; left:' + z.left + 'px; width:' + z.width + 'px; height:' + z.height + 'px; ' +
-          'border:2px dashed rgba(16,185,129,0.8); background:rgba(16,185,129,0.15); box-sizing:border-box; cursor:grab; z-index:100;">' +
-          '<div style="position:absolute; top:2px; left:2px; background:#10b981; color:white; padding:2px 6px; border-radius:3px; font-size:9px; font-weight:bold; white-space:nowrap; pointer-events:none;">' + z.id + '</div>' +
-          '<div data-resize="move" style="position:absolute; inset:0; cursor:grab;"></div>' +
-          '<div data-resize="right" style="position:absolute; top:0; right:-4px; width:8px; height:100%; cursor:ew-resize;"></div>' +
-          '<div data-resize="bottom" style="position:absolute; bottom:-4px; left:0; width:100%; height:8px; cursor:ns-resize;"></div>' +
-          '<div data-resize="bottom-right" style="position:absolute; bottom:-4px; right:-4px; width:12px; height:12px; cursor:nwse-resize; background:#10b981; border-radius:2px;"></div>' +
-          '</div>'
-      }).join('')
-
-      // Try to inject inside ISI containers (various patterns)
-      var injected = false
-      var isiContainers = ['#innerMostDiv', '#isi-content-wrapper', '#isi-copy', '#isi', '#isi-container', '#isi-con']
-      for (var ci = 0; ci < isiContainers.length && !injected; ci++) {
-        var sel = isiContainers[ci]
-        var idName = sel.replace('#', '')
-        var pattern = new RegExp('(<[^>]*id=["\']' + idName + '["\'][^>]*>)', 'i')
-        if (pattern.test(html)) {
-          html = html.replace(pattern, '$1<div style="position:relative;">' + zoneIndicatorsHTML + '</div>')
-          injected = true
-        }
-      }
-
-      // Add drag/resize script for ISI zones
-      var isiDragScript = '<script>' +
-        '(function(){' +
-        'var active=null,mode=null,startX=0,startY=0,startLeft=0,startTop=0,startWidth=0,startHeight=0;' +
-        'document.querySelectorAll(".czt-isi-zone [data-resize]").forEach(function(h){' +
-        '  h.addEventListener("mousedown",function(e){' +
-        '    e.preventDefault();e.stopPropagation();' +
-        '    var el=h.closest(".czt-isi-zone");if(!el)return;' +
-        '    active=el;mode=h.getAttribute("data-resize");' +
-        '    startX=e.clientX;startY=e.clientY;' +
-        '    startLeft=parseInt(el.style.left)||0;startTop=parseInt(el.style.top)||0;' +
-        '    startWidth=parseInt(el.style.width)||0;startHeight=parseInt(el.style.height)||0;' +
-        '  });' +
-        '});' +
-        'document.addEventListener("mousemove",function(e){' +
-        '  if(!active)return;e.preventDefault();' +
-        '  var dx=e.clientX-startX,dy=e.clientY-startY;' +
-        '  if(mode==="move"){active.style.left=Math.max(0,startLeft+dx)+"px";active.style.top=Math.max(0,startTop+dy)+"px";}' +
-        '  else if(mode==="right"){active.style.width=Math.max(20,startWidth+dx)+"px";}' +
-        '  else if(mode==="bottom"){active.style.height=Math.max(20,startHeight+dy)+"px";}' +
-        '  else if(mode==="bottom-right"){active.style.width=Math.max(20,startWidth+dx)+"px";active.style.height=Math.max(20,startHeight+dy)+"px";}' +
-        '});' +
-        'document.addEventListener("mouseup",function(){' +
-        '  if(!active)return;' +
-        '  var idx=parseInt(active.getAttribute("data-zone-index"));' +
-        '  window.parent.postMessage({type:"isiZoneUpdate",zoneIndex:idx,' +
-        '    top:parseInt(active.style.top)||0,left:parseInt(active.style.left)||0,' +
-        '    width:parseInt(active.style.width)||0,height:parseInt(active.style.height)||0},"*");' +
-        '  active=null;' +
-        '});' +
-        '})();' +
-        '<\/script>'
-      html = html.replace('</body>', isiDragScript + '</body>')
-    }
+    // Inject ISI zone management script — zones are added/updated via postMessage, not HTML rebuild
+    var isiScript = '<script>' +
+      'window.addEventListener("message",function(e){' +
+      '  if(e.data&&e.data.type==="injectISIZones"){' +
+      '    // Remove old zones' +
+      '    document.querySelectorAll(".czt-isi-zone").forEach(function(z){z.remove();});' +
+      '    var zones=e.data.zones;if(!zones||!zones.length)return;' +
+      '    // Find ISI container' +
+      '    var containers=["innerMostDiv","isi-content-wrapper","isi-copy","isi","isi-container","isi-con"];' +
+      '    var target=null;' +
+      '    for(var i=0;i<containers.length;i++){target=document.getElementById(containers[i]);if(target)break;}' +
+      '    if(!target)return;' +
+      '    target.style.position="relative";' +
+      '    zones.forEach(function(z){' +
+      '      var el=document.createElement("div");el.className="czt-isi-zone";el.setAttribute("data-zone-index",z.index);' +
+      '      el.style.cssText="position:absolute;top:"+z.top+"px;left:"+z.left+"px;width:"+z.width+"px;height:"+z.height+"px;border:2px dashed rgba(16,185,129,0.8);background:rgba(16,185,129,0.15);box-sizing:border-box;cursor:grab;z-index:100;";' +
+      '      el.innerHTML=\'<div style="position:absolute;top:2px;left:2px;background:#10b981;color:white;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:bold;white-space:nowrap;pointer-events:none;">\'+z.id+\'</div>\';' +
+      '      target.appendChild(el);' +
+      '      // Drag support' +
+      '      el.addEventListener("mousedown",function(ev){' +
+      '        ev.preventDefault();ev.stopPropagation();' +
+      '        var startX=ev.clientX,startY=ev.clientY,sL=parseInt(el.style.left)||0,sT=parseInt(el.style.top)||0;' +
+      '        function onMove(me){var dx=me.clientX-startX,dy=me.clientY-startY;el.style.left=Math.max(0,sL+dx)+"px";el.style.top=Math.max(0,sT+dy)+"px";}' +
+      '        function onUp(){document.removeEventListener("mousemove",onMove);document.removeEventListener("mouseup",onUp);' +
+      '          window.parent.postMessage({type:"isiZoneUpdate",zoneIndex:parseInt(el.getAttribute("data-zone-index")),top:parseInt(el.style.top)||0,left:parseInt(el.style.left)||0,width:parseInt(el.style.width)||0,height:parseInt(el.style.height)||0},"*");' +
+      '        }' +
+      '        document.addEventListener("mousemove",onMove);document.addEventListener("mouseup",onUp);' +
+      '      });' +
+      '    });' +
+      '  }' +
+      '});' +
+      '<\/script>'
+    html = html.replace('</body>', isiScript + '</body>')
 
     return html
-  }, [htmlContent, files, clickZones])
+  }, [htmlContent, files])
 
   // Zone mouse handlers — same pattern as PreviewIframe
   const handleZoneMouseDown = (e, index, mode) => {
@@ -329,6 +319,7 @@ function ClickZoneToolPreview() {
             onClick={handleOverlayClick}
           >
             <iframe
+              ref={iframeRef}
               key={key}
               srcDoc={previewHTML}
               style={{
