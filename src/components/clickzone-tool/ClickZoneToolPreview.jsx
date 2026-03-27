@@ -31,7 +31,7 @@ function ClickZoneToolPreview() {
   }, [updateZonePosition])
 
   // Send ISI zones to iframe when they change (without rebuilding the HTML)
-  useEffect(() => {
+  const sendISIZones = () => {
     const isiZones = clickZones.filter(z => z.inISI).map(z => ({
       index: clickZones.indexOf(z),
       id: z.id,
@@ -40,13 +40,17 @@ function ClickZoneToolPreview() {
       width: z.width,
       height: z.height
     }))
-    // Small delay to let iframe load
-    const timer = setTimeout(() => {
-      if (iframeRef.current && iframeRef.current.contentWindow) {
-        iframeRef.current.contentWindow.postMessage({ type: 'injectISIZones', zones: isiZones }, '*')
-      }
-    }, 500)
-    return () => clearTimeout(timer)
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ type: 'injectISIZones', zones: isiZones }, '*')
+    }
+  }
+
+  useEffect(() => {
+    // Try multiple times — the iframe and its scripts need time to load
+    const t1 = setTimeout(sendISIZones, 300)
+    const t2 = setTimeout(sendISIZones, 800)
+    const t3 = setTimeout(sendISIZones, 1500)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [clickZones])
 
   // Drag/resize state — reuses same pattern as PreviewIframe non-ISI zones
@@ -165,14 +169,14 @@ function ClickZoneToolPreview() {
     var isiScript = '<script>' +
       'window.addEventListener("message",function(e){' +
       '  if(e.data&&e.data.type==="injectISIZones"){' +
-      '    // Remove old zones' +
       '    document.querySelectorAll(".czt-isi-zone").forEach(function(z){z.remove();});' +
       '    var zones=e.data.zones;if(!zones||!zones.length)return;' +
-      '    // Find ISI container' +
-      '    var containers=["innerMostDiv","isi-content-wrapper","isi-copy","isi","isi-container","isi-con"];' +
+      '    // Find ISI container — try IDs first, then classes, then any element with isi in id/class' +
+      '    var ids=["innerMostDiv","isi-content-wrapper","isi-copy","isi","isi-container","isi-con","isi_container","scrollbar1","outerMostDiv"];' +
       '    var target=null;' +
-      '    for(var i=0;i<containers.length;i++){target=document.getElementById(containers[i]);if(target)break;}' +
-      '    if(!target)return;' +
+      '    for(var i=0;i<ids.length;i++){target=document.getElementById(ids[i]);if(target)break;}' +
+      '    if(!target){var all=document.querySelectorAll("[id*=isi],[class*=isi]");if(all.length)target=all[all.length-1];}' +
+      '    if(!target){target=document.body;}' +
       '    target.style.position="relative";' +
       '    zones.forEach(function(z){' +
       '      var el=document.createElement("div");el.className="czt-isi-zone";el.setAttribute("data-zone-index",z.index);' +
