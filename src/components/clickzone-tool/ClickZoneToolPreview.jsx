@@ -226,13 +226,18 @@ function ClickZoneToolPreview() {
     }
   }
 
+  // Only re-inject ISI zones when membership changes (add/remove/inISI toggle),
+  // NOT on every position update — position changes are handled inside the iframe DOM
+  const isiZoneSignature = clickZones.filter(z => z.inISI).map(z => z.id).join(',')
+  const isiZoneCount = clickZones.filter(z => z.inISI).length
+
   useEffect(() => {
     // Retry injection — iframe needs time to load and render
     const t1 = setTimeout(injectISIZones, 500)
     const t2 = setTimeout(injectISIZones, 1500)
     const t3 = setTimeout(injectISIZones, 3000)
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
-  }, [clickZones])
+  }, [isiZoneSignature, isiZoneCount, key])
 
   // Drag/resize state — reuses same pattern as PreviewIframe non-ISI zones
   const [isZoneDragging, setIsZoneDragging] = useState(false)
