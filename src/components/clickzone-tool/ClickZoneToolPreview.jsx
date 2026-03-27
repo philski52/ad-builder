@@ -24,14 +24,56 @@ function ClickZoneToolPreview() {
     if (!htmlContent) return ''
     let html = htmlContent
 
-    // Replace asset paths with data URLs
+    // Build a lookup of all file content by every possible path variation
+    const fileLookup = {} // path → { content, dataUrl, isText }
+    for (const [filename, file] of Object.entries(files)) {
+      const basename = filename.split('/').pop()
+      const parts = filename.split('/')
+      const paths = [basename]
+      for (let i = 0; i < parts.length; i++) {
+        const subpath = parts.slice(i).join('/')
+        if (subpath && !paths.includes(subpath)) paths.push(subpath)
+        if (subpath && !paths.includes('./' + subpath)) paths.push('./' + subpath)
+      }
+      for (const p of paths) {
+        fileLookup[p] = file
+      }
+    }
+
+    // Inline CSS <link> tags — replace with <style> containing the file content
+    html = html.replace(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["']stylesheet["'][^>]*\/?>/gi, function(match, href) {
+      const file = fileLookup[href]
+      if (file && typeof file.content === 'string') {
+        return '<style>/* ' + href + ' */\n' + file.content + '</style>'
+      }
+      return match
+    })
+    // Also match <link rel="stylesheet" href="..."> (rel before href)
+    html = html.replace(/<link[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*\/?>/gi, function(match, href) {
+      const file = fileLookup[href]
+      if (file && typeof file.content === 'string') {
+        return '<style>/* ' + href + ' */\n' + file.content + '</style>'
+      }
+      return match
+    })
+
+    // Inline local JS <script src="..."> tags — replace with inline <script>
+    html = html.replace(/<script[^>]*src=["']([^"']+)["'][^>]*><\/script>/gi, function(match, src) {
+      // Skip CDN scripts — let them load normally
+      if (/^https?:\/\//i.test(src)) return match
+      const file = fileLookup[src]
+      if (file && typeof file.content === 'string') {
+        return '<script>/* ' + src + ' */\n' + file.content + '<\/script>'
+      }
+      return match
+    })
+
+    // Replace image/media asset paths with data URLs
     for (const [filename, file] of Object.entries(files)) {
       if (!file.dataUrl) continue
       const basename = filename.split('/').pop()
-      // Build all possible path variations the HTML might reference
-      const patterns = [basename]
-      // Add with each parent folder: img/bg.jpg, ./img/bg.jpg, images/bg.jpg, etc.
       const parts = filename.split('/')
+      const patterns = [basename]
       for (let i = 0; i < parts.length; i++) {
         const subpath = parts.slice(i).join('/')
         if (subpath && !patterns.includes(subpath)) patterns.push(subpath)
@@ -40,11 +82,20 @@ function ClickZoneToolPreview() {
       for (const pattern of patterns) {
         html = html.split(`src="${pattern}"`).join(`src="${file.dataUrl}"`)
         html = html.split(`src='${pattern}'`).join(`src='${file.dataUrl}'`)
-        html = html.split(`href="${pattern}"`).join(`href="${file.dataUrl}"`)
         html = html.split(`url("${pattern}")`).join(`url("${file.dataUrl}")`)
         html = html.split(`url('${pattern}')`).join(`url('${file.dataUrl}')`)
         html = html.split(`url(${pattern})`).join(`url(${file.dataUrl})`)
       }
+    }
+
+    // Also replace image URLs inside inlined CSS (the CSS we just inlined may reference images)
+    for (const [filename, file] of Object.entries(files)) {
+      if (!file.dataUrl) continue
+      const basename = filename.split('/').pop()
+      // CSS often uses relative paths like ../images/bg.jpg or just bg.jpg
+      html = html.split(`url("${basename}")`).join(`url("${file.dataUrl}")`)
+      html = html.split(`url('${basename}')`).join(`url('${file.dataUrl}')`)
+      html = html.split(`url(${basename})`).join(`url(${file.dataUrl})`)
     }
 
     // Disable click handlers so they don't interfere with overlay
