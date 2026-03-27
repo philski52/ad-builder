@@ -525,7 +525,7 @@ export function generateClicksCSS(config) {
 .click-zone {
     position: absolute;
     cursor: pointer;
-    z-index: 10;
+    z-index: 9999;
 }
 
 `
