@@ -2,23 +2,17 @@ import { useRefactorStore } from '../../stores/refactorStore'
 import OverviewStep from './steps/OverviewStep'
 import RefactorStep from './steps/RefactorStep'
 import TasksStep from './steps/TasksStep'
-import EditorStep from './steps/EditorStep'
-import AiChatPanel from './AiChatPanel'
-import ExportRefactorButton from './ExportRefactorButton'
 
 const STEPS = [
   { id: 'overview', label: 'Overview', icon: OverviewIcon },
   { id: 'refactor', label: 'Refactor', icon: RefactorIcon },
-  { id: 'tasks', label: 'Tasks', icon: TasksIcon },
-  { id: 'editor', label: 'Editor', icon: EditorIcon },
+  { id: 'tasks', label: 'Tasks & Export', icon: TasksIcon },
 ]
 
 function RefactorWorkspace() {
   const currentStep = useRefactorStore((s) => s.currentStep)
   const setStep = useRefactorStore((s) => s.setStep)
   const closeRefactor = useRefactorStore((s) => s.closeRefactor)
-  const isChatOpen = useRefactorStore((s) => s.isChatOpen)
-  const toggleChat = useRefactorStore((s) => s.toggleChat)
   const adMeta = useRefactorStore((s) => s.adMeta)
   const tasks = useRefactorStore((s) => s.tasks)
   const importResult = useRefactorStore((s) => s.importResult)
@@ -92,42 +86,15 @@ function RefactorWorkspace() {
           })}
         </nav>
 
-        {/* Right side actions */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={toggleChat}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              isChatOpen
-                ? 'bg-purple-50 text-purple-700 ring-1 ring-purple-200'
-                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-            }`}
-            title="Toggle AI Assistant"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-            AI
-          </button>
-          <ExportRefactorButton />
-        </div>
+        {/* Spacer to balance header layout */}
+        <div className="w-20"></div>
       </header>
 
       {/* Content area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Main step content */}
-        <div className="flex-1 overflow-y-auto">
-          {currentStep === 'overview' && <OverviewStep />}
-          {currentStep === 'refactor' && <RefactorStep />}
-          {currentStep === 'tasks' && <TasksStep />}
-          {currentStep === 'editor' && <EditorStep />}
-        </div>
-
-        {/* AI Chat panel (side panel) */}
-        {isChatOpen && (
-          <div className="w-96 border-l border-gray-200 flex-shrink-0">
-            <AiChatPanel />
-          </div>
-        )}
+      <div className="flex-1 overflow-y-auto">
+        {currentStep === 'overview' && <OverviewStep />}
+        {currentStep === 'refactor' && <RefactorStep />}
+        {currentStep === 'tasks' && <TasksStep />}
       </div>
     </div>
   )
