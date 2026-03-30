@@ -227,8 +227,7 @@ function buildAdContext(adPlatform) {
   if (adPlatform === 'ixr') {
     section += '- **Devices:** BrightSign media players and PatientPoint wallboard displays running Chrome 69 — always offline, no internet access\n'
   } else if (adPlatform === 'focus') {
-    // TODO: Focus device specs to be added by focus dev
-    section += '- **Devices:** Focus display devices — specs TBD\n'
+    section += '- **Devices:** Focus precision display ads (300x250) — served via ad server, browser-based\n'
   } else if (adPlatform === 'ipro') {
     section += '- **Devices:** BrightSign media players and PatientPoint wallboard displays running Chrome 69 — always offline, no internet access (same hardware as IXR)\n'
   }
@@ -241,8 +240,7 @@ function buildDeviceSpecs(adPlatform, adType, width, height) {
   if (adPlatform === 'ixr') {
     return buildIXRDeviceSpecs(adType, width, height)
   } else if (adPlatform === 'focus') {
-    // TODO: Focus device specs to be added by focus dev
-    return '## Device Specifications (Focus)\n\n> **TODO:** Focus device specifications have not been configured yet. Contact the development team for Focus platform requirements.\n'
+    return buildFocusDeviceSpecs(width, height)
   } else if (adPlatform === 'ipro') {
     return buildIProDeviceSpecs(width, height)
   }
@@ -411,6 +409,53 @@ function buildIXRDeviceSpecs(adType, width, height) {
   s += '// Easing options\n'
   s += '// Power0.easeNone, Power1.easeIn/Out/InOut, Power2, Power3, Power4\n'
   s += '// Bounce.easeOut, Elastic.easeOut, Back.easeOut\n'
+  s += '```\n'
+
+  return s
+}
+
+function buildFocusDeviceSpecs(width, height) {
+  let s = '## Device Specifications (Focus)\n\n'
+  s += '### Key Differences from IXR\n'
+  s += '- **No appHost** — Focus ads do NOT use appHost integration\n'
+  s += '- **No ad.js** — click handlers are inline `<script>` at the bottom of the HTML\n'
+  s += '- **No ISI restructuring** — leave scrollbars and ISI structure as-is\n'
+  s += '- **No scroller.js** — do not add the standard ISI scroller\n\n'
+
+  s += '### Click Handlers (Required Pattern)\n'
+  s += 'Focus ads use inline click handlers with `getParameterByName` URL parameter fallback:\n'
+  s += '```javascript\n'
+  s += '<script>\n'
+  s += '    var clickTag1 = \'https://www.example.com\';\n'
+  s += '    var clickTag2 = \'https://www.example.com/pi.pdf\';\n\n'
+  s += '    function getParameterByName(name) {\n'
+  s += '        var match = RegExp(\'[?&]\' + name + \'=([^&]*)\').exec(window.location.search);\n'
+  s += '        return match && decodeURIComponent(match[1].replace(/\\+/g, \' \'));\n'
+  s += '    }\n\n'
+  s += '    document.getElementById("mainClick").addEventListener("click", function(){\n'
+  s += '        window.open(getParameterByName(\'clickTag1\')||clickTag1);\n'
+  s += '    });\n'
+  s += '    document.getElementById("piLink").addEventListener("click", function(){\n'
+  s += '        window.open(getParameterByName(\'clickTag2\')||clickTag2);\n'
+  s += '    });\n'
+  s += '</script>\n'
+  s += '```\n'
+  s += '**Key rules:** This script goes inline before `</body>`. `getParameterByName` checks the URL for override values (used by the ad server), falling back to the hardcoded clickTag variables. All links use `window.open()` — no appHost, no openExternalLinkFull.\n\n'
+
+  s += '### Still Required\n'
+  s += '- **ES5 ONLY** — No const/let, arrow functions, template literals, etc.\n'
+  s += '- **No CDN scripts** — All scripts must be local files\n'
+  s += '- **GWD elements must be converted** to standard HTML\n'
+  s += '- **Enabler.js must be removed**\n\n'
+
+  s += '### Console Silencing (Required)\n'
+  s += '```javascript\n'
+  s += 'console.log = console.info = console.warn = console.error = function() {};\n'
+  s += '```\n\n'
+
+  s += '### Ad Size Meta Tag\n'
+  s += '```html\n'
+  s += '<meta name="ad.size" content="width=' + width + ',height=' + height + '">\n'
   s += '```\n'
 
   return s
@@ -601,8 +646,10 @@ function buildImportantNotes(adPlatform) {
     s += '- SVGs are hit-or-miss on Chrome 69/BrightSign. If an SVG doesn\'t render, convert it to PNG.\n'
     s += '- All fonts must be local (no Google Fonts CDN). Do NOT replace brand fonts with web-safe alternatives. Use `@font-face` with local font files, or if font files are unavailable, convert text elements to images.\n'
   } else if (adPlatform === 'focus') {
-    // TODO: Focus-specific notes to be added by focus dev
-    s += '- Focus platform-specific notes TBD.\n'
+    s += '- When modifying JavaScript, ensure ALL code is ES5 compliant.\n'
+    s += '- Click handlers use `window.open()` with `getParameterByName()` fallback — no appHost.\n'
+    s += '- Do NOT add appHost, ad.js, scroller.js, or ISI restructuring — Focus does not use these.\n'
+    s += '- Leave ISI scrollbars as-is — do not replace with standard scroller pattern.\n'
   } else if (adPlatform === 'ipro') {
     s += '- Test all changes against Chrome 69 compatibility.\n'
     s += '- When modifying JavaScript, ensure ALL code is ES5 compliant.\n'

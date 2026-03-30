@@ -3024,8 +3024,10 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 6. Add appHost integration if missing
-  if (!refactoredHtml.includes('appHost') && !refactoredAdJs.includes('appHost')) {
+  // 6. Add appHost integration if missing (IXR/iPro only — Focus doesn't use appHost)
+  var isIxrOrIpro = result.adPlatform === 'ixr' || result.adPlatform === 'ipro'
+  var isFocus = result.adPlatform === 'focus'
+  if (isIxrOrIpro && !refactoredHtml.includes('appHost') && !refactoredAdJs.includes('appHost')) {
     const appHostAdded = addAppHostIntegration(refactoredHtml)
     refactoredHtml = appHostAdded.html
     appliedFixes.push({
@@ -3198,14 +3200,13 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     })
   }
 
-  // 9. Add ISI scroller if ISI is detected
-  // Native CSS scrollbars do NOT work on IXR devices - must use dynamic JS scroller
+  // 9. Add ISI scroller if ISI is detected (IXR/iPro only — Focus leaves scrollbars as-is)
   const hasISI = result.template?.features?.includes('isi') ||
                  refactoredHtml.includes('id="outerMostDiv"') ||
                  refactoredHtml.includes('id="innerMostDiv"') ||
                  refactoredHtml.includes('id="isi-controls"')
 
-  if (hasISI) {
+  if (isIxrOrIpro && hasISI) {
     const isiScrollerAdded = addISIScroller(refactoredHtml, refactoredAdJs, result.config || {})
     if (isiScrollerAdded.changed) {
       refactoredHtml = isiScrollerAdded.html
@@ -3341,8 +3342,42 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 18. Generate ad.js for GWD ads with extracted exit URLs (when no ad.js exists)
-  if (!refactoredAdJs && result.detectedUrls && result.detectedUrls.length > 0) {
+  // 18. Generate click handlers for GWD ads with extracted exit URLs
+  // IXR/iPro: generate ad.js file | Focus: generate inline script with getParameterByName
+  if (!refactoredAdJs && result.detectedUrls && result.detectedUrls.length > 0 && isFocus) {
+    // Focus: inline click handlers with getParameterByName fallback
+    var focusExitUrls = result.detectedUrls.filter(function(u) {
+      return u.type === 'pdf' || u.type === 'gwd-exit'
+    })
+    if (focusExitUrls.length > 0) {
+      var focusScript = '\n<script>\n'
+      // clickTag declarations
+      focusExitUrls.forEach(function(exitUrl, i) {
+        focusScript += '    var clickTag' + (i + 1) + ' = \'' + exitUrl.url + '\';\n'
+      })
+      focusScript += '\n'
+      // getParameterByName function
+      focusScript += '    function getParameterByName(name) {\n'
+      focusScript += '        var match = RegExp(\'[?&]\' + name + \'=([^&]*)\').exec(window.location.search);\n'
+      focusScript += '        return match && decodeURIComponent(match[1].replace(/\\+/g, \' \'));\n'
+      focusScript += '    }\n\n'
+      // addEventListener handlers
+      var focusChanges = []
+      focusExitUrls.forEach(function(exitUrl, i) {
+        var varName = 'clickTag' + (i + 1)
+        focusScript += '    document.getElementById("' + exitUrl.id + '").addEventListener("click", function(){ window.open(getParameterByName(\'' + varName + '\')||' + varName + '); });\n'
+        focusChanges.push('Added Focus click handler for #' + exitUrl.id + ' → ' + varName)
+      })
+      focusScript += '</script>\n'
+      // Inject before </body>
+      refactoredHtml = refactoredHtml.replace(/<\/body>/i, focusScript + '</body>')
+      appliedFixes.push({
+        id: 'generate-focus-clicks',
+        description: 'Generated inline Focus click handlers with getParameterByName fallback',
+        details: focusChanges
+      })
+    }
+  } else if (!refactoredAdJs && result.detectedUrls && result.detectedUrls.length > 0) {
     var exitUrls = result.detectedUrls.filter(function(u) {
       return u.type === 'pdf' || u.type === 'gwd-exit'
     })
