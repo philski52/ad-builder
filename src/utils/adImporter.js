@@ -1934,6 +1934,30 @@ function analyzeAnimations(html, adJs, mainJs, otherJsCode) {
  */
 function buildManualTasksList(result, html, adJs) {
   const tasks = []
+  var isFocusPlatform = result.adPlatform === 'focus'
+
+  // Focus ads only need: Enabler removal + click conversion — skip all IXR tasks
+  if (isFocusPlatform) {
+    if (result.features?.hasEnabler) {
+      tasks.push({
+        id: 'remove-enabler-focus',
+        priority: 'high',
+        title: 'Remove Enabler.js Loading Delay',
+        description: 'This ad uses Enabler.js with an initialization delay. Remove the Enabler script, its DOMContentLoaded/isInitialized checks, and let the ad render immediately.',
+        action: '1) Remove Enabler.js <script> tag, 2) Remove Enabler.addEventListener and isInitialized checks, 3) Remove any WebComponentsReady or DOMContentLoaded wrappers that gate ad display'
+      })
+    }
+    if (!result.detectedUrls || result.detectedUrls.length === 0) {
+      tasks.push({
+        id: 'add-focus-clicks',
+        priority: 'high',
+        title: 'Add Focus Click Handlers',
+        description: 'No click URLs were auto-detected. Add inline click handlers with getParameterByName fallback.',
+        action: 'Identify clickable elements, add var clickTag1/2/3 declarations with URLs, add getParameterByName function, add addEventListener handlers before </body>'
+      })
+    }
+    return tasks
+  }
 
   // Check for unmapped assets
   const unmappedAssets = result.allAssets?.filter(a => !a.mapped) || []
