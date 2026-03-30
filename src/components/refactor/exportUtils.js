@@ -591,6 +591,8 @@ function buildImportantNotes(adPlatform) {
   let s = '## Important Notes\n'
   s += '- **MINIMAL CHANGES ONLY.** The goal is the least amount of code necessary to make this ad device-ready. Do not refactor for style, do not reorganize, do not "improve" working code. Every imported ad is different and chaotic — that\'s expected. Preserve the original structure wherever possible.\n'
   s += '- **PRESERVE GLOBAL CSS.** When removing dead code (polite loaders, loader spinners, GWD runtime, etc.), check if the same inline `<style>` block or CSS file contains global layout rules the ad depends on (e.g. `div { position: absolute; }`, `* { margin: 0; }`, `.banner { display: none; }`). Move these rules to `style.css` before deleting the dead code.\n'
+  s += '- **IDENTIFY ASSETS VISUALLY, NOT BY CODE.** SVG files cannot be identified by reading their XML/path data — it\'s just coordinates. Use filenames, CSS positioning (top/left values), dimensions (width/height), and context in the HTML to determine what each asset is. When rebuilding, open the original ad in a browser to visually confirm which frames/elements appear and in what order. If you cannot determine what an asset is, **ask the user**.\n'
+  s += '- **CHECK FOR TEXT ELEMENTS WITHOUT ASSET FILES.** Some ad builders (Creatopy, GWD) render disclaimers, fine print, and other text as styled HTML — not images. These won\'t appear in the asset inventory. Look for `<span>`, `<p>`, or `<div>` elements with text content in the original HTML and recreate them in the rebuilt ad.\n'
 
   if (adPlatform === 'ixr') {
     s += '- Test all changes against Chrome 69 compatibility.\n'
@@ -859,7 +861,14 @@ function buildWarnings(features, animAnalysis, adMeta, config, files) {
   // Creatopy ad — requires complete rebuild
   if (features?.hasCreatopy) {
     warnings.push(
-      '**Creatopy Ad (Critical):** This ad was built with Creatopy (formerly Bannersnack). It uses a proprietary runtime (`creatopyEmbed`) with styled-components (hashed CSS classes), a custom event-driven animation engine, and `bsOpenURL` click handling. **The entire ad must be rebuilt from scratch.** Extract the frame images from the `media/` folder, create standard HTML, rebuild animations with TweenMax 2.0.1, and add standard ad.js click handlers.'
+      '**Creatopy Ad (Critical):** This ad was built with Creatopy (formerly Bannersnack). It uses a proprietary runtime (`creatopyEmbed`) with styled-components (hashed CSS classes), a custom event-driven animation engine, and `bsOpenURL` click handling. **The entire ad must be rebuilt from scratch.**\n' +
+      '>\n' +
+      '> **Rebuild steps:**\n' +
+      '> 1. Extract frame images from the `media/` folder\n' +
+      '> 2. **Do NOT rely on the `designData.animations` JSON for timing** — Creatopy\'s slide/element system has complex show/hide logic (hiddenOnSlides arrays, duration limits, slide-level element copies) that does not translate 1:1 to TweenMax. Instead, open the original ad in a browser and visually observe the animation to determine frame order, timing, and which elements persist across slides.\n' +
+      '> 3. **SVG assets cannot be identified by reading their XML paths** — SVGs are vector data that looks like coordinates, not recognizable content. Use filenames, CSS positioning (top/left values tell you where it appears), dimensions (width/height tell you if it\'s a logo vs. text), and context in the HTML to determine what each asset is. When in doubt, **ask the user** what the asset is.\n' +
+      '> 4. **Check for text elements that have no asset file** — Creatopy renders some content as styled HTML text (e.g. disclaimers, fine print) using web fonts. These will NOT have a corresponding image file in the media folder. Look for `<span>`, `<p>`, or `<div>` elements with text content in the original HTML and recreate them as positioned text elements in the rebuilt ad.\n' +
+      '> 5. Create standard HTML with positioned `<div>`/`<img>` elements, rebuild animations with TweenMax 2.0.1, and add standard ad.js click handlers.'
     )
   }
 
