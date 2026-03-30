@@ -170,8 +170,9 @@ export async function parseAdZip(zipFile, options) {
     }
 
     // Check for GWD (Google Web Designer) ads
+    // Focus keeps GWD elements — only IXR/iPro converts them
     const gwdDetection = detectGWD(html)
-    if (gwdDetection.isGWD) {
+    if (gwdDetection.isGWD && platform !== 'focus') {
       result.isGWD = true
 
       result.fixes.push({
@@ -213,25 +214,25 @@ export async function parseAdZip(zipFile, options) {
       })
     }
 
-    // Detect and convert CSS animations to TweenMax
-    const cssAnimResult = detectAndConvertCSSAnimations(html)
-    html = cssAnimResult.html
-    if (cssAnimResult.animations.length > 0) {
-      result.fixes.push({
-        id: 'css-animations',
-        category: 'Animation',
-        issue: `${cssAnimResult.animations.length} CSS animation(s) detected`,
-        reason: 'CSS animations are less reliable on target devices than TweenMax',
-        action: 'auto',
-        resolution: 'Converting to TweenMax animations for better device compatibility'
-      })
-
-      // Add converted animations to result
-      result.cssAnimationsConverted = cssAnimResult.animations
+    // Detect and convert CSS animations to TweenMax (IXR/iPro only — Focus keeps CSS animations)
+    if (platform !== 'focus') {
+      const cssAnimResult = detectAndConvertCSSAnimations(html)
+      html = cssAnimResult.html
+      if (cssAnimResult.animations.length > 0) {
+        result.fixes.push({
+          id: 'css-animations',
+          category: 'Animation',
+          issue: `${cssAnimResult.animations.length} CSS animation(s) detected`,
+          reason: 'CSS animations are less reliable on target devices than TweenMax',
+          action: 'auto',
+          resolution: 'Converting to TweenMax animations for better device compatibility'
+        })
+        result.cssAnimationsConverted = cssAnimResult.animations
+      }
     }
 
-    // Remove custom scroll implementations (devices use standard ISI scroller)
-    const scrollDetection = detectScrollImplementations(html, adJs)
+    // Remove custom scroll implementations (IXR/iPro only — Focus leaves scrollbars as-is)
+    const scrollDetection = platform !== 'focus' ? detectScrollImplementations(html, adJs) : []
     if (scrollDetection.length > 0) {
       scrollDetection.forEach(scroll => {
         result.fixes.push({
@@ -246,7 +247,7 @@ export async function parseAdZip(zipFile, options) {
     }
 
     const htmlBeforeScrollRemoval = html
-    html = removeScrollImplementations(html)
+    if (platform !== 'focus') html = removeScrollImplementations(html)
     if (html !== htmlBeforeScrollRemoval) {
       result.fixes.push({
         id: 'scroll-removed',
@@ -3257,6 +3258,9 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
+  // 11-17.5: IXR/iPro click handler conversions — Focus handles clicks differently (inline getParameterByName)
+  if (isIxrOrIpro) {
+
   // 11. Add device-compatible click handlers
   var clickHandlersConverted = convertClickHandlers(refactoredHtml, refactoredAdJs)
   if (clickHandlersConverted.changed) {
@@ -3366,6 +3370,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
       })
     }
   }
+
+  } // end isIxrOrIpro click handler block
 
   // 18. Generate click handlers for GWD ads with extracted exit URLs
   // IXR/iPro: generate ad.js file | Focus: generate inline script with getParameterByName

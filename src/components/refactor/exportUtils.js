@@ -148,7 +148,7 @@ export function buildContextFile(files, tasks, adMeta, importResult) {
   const iframeGuide = buildIframeGuide(features)
 
   // --- Warnings & Contradictions ---
-  const warnings = buildWarnings(features, animAnalysis, adMeta, config, files)
+  const warnings = buildWarnings(features, animAnalysis, adMeta, config, files, adPlatform)
 
   // --- Pre-Implementation Checklist ---
   const checklist = buildChecklist(features, animAnalysis, adMeta, allAssets, config)
@@ -807,8 +807,25 @@ function buildAssetInventory(allAssets, mappedAssets, sceneStructure) {
 }
 
 // ===== HELPER: Warnings & Contradictions =====
-function buildWarnings(features, animAnalysis, adMeta, config, files) {
+function buildWarnings(features, animAnalysis, adMeta, config, files, adPlatform) {
   const warnings = []
+  var isFocusPlatform = adPlatform === 'focus'
+
+  // Focus ads skip most warnings — they have internet, modern browser, keep GWD/GSAP/CSS as-is
+  if (isFocusPlatform) {
+    // Only show Enabler warning for Focus
+    if (features?.hasEnabler) {
+      warnings.push(
+        '**Enabler.js Detected:** Remove Enabler.js and its initialization delay. Replace Enabler.exit() calls with the Focus click handler pattern (getParameterByName + window.open).'
+      )
+    }
+    if (warnings.length === 0) return ''
+    let section = '## WARNINGS — Read Before Starting\n\n'
+    for (const w of warnings) {
+      section += `> ${w}\n\n`
+    }
+    return section
+  }
 
   // GSAP 3.x detected but device requires TweenMax 2.0.1
   if (animAnalysis?.type === 'gsap3' || (animAnalysis?.type === 'gwd' && animAnalysis?.details?.some(d => /GSAP 3/i.test(d)))) {
