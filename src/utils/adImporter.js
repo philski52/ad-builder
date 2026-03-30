@@ -3042,8 +3042,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     return /__webpack_modules__|__webpack_require__|webpackJsonp|creatopyEmbed/i.test(content)
   }
 
-  // 7. Convert ES6 to ES5 for better device compatibility (ad.js)
-  if (!isUnsafeBundledCode(refactoredAdJs)) {
+  // 7. Convert ES6 to ES5 for better device compatibility (IXR/iPro only)
+  if (isIxrOrIpro && !isUnsafeBundledCode(refactoredAdJs)) {
     var es6Converted = convertES6ToES5(refactoredAdJs)
     if (es6Converted.changed) {
       refactoredAdJs = es6Converted.js
@@ -3055,8 +3055,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 7b. Convert ES6 to ES5 in main.js as well (skip webpack bundles)
-  if (refactoredMainJs && !isUnsafeBundledCode(refactoredMainJs)) {
+  // 7b. Convert ES6 to ES5 in main.js (IXR/iPro only)
+  if (isIxrOrIpro && refactoredMainJs && !isUnsafeBundledCode(refactoredMainJs)) {
     var mainJsEs6Converted = convertES6ToES5(refactoredMainJs)
     if (mainJsEs6Converted.changed) {
       refactoredMainJs = mainJsEs6Converted.js
@@ -3068,8 +3068,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 7c. Convert window.open(clickTagX) in main.js to device-compatible calls
-  if (refactoredMainJs && /window\.open\s*\(\s*(?:window\.)?(clickTag\w*)/i.test(refactoredMainJs)) {
+  // 7c. Convert window.open(clickTagX) in main.js to device-compatible calls (IXR/iPro only)
+  if (isIxrOrIpro && refactoredMainJs && /window\.open\s*\(\s*(?:window\.)?(clickTag\w*)/i.test(refactoredMainJs)) {
     // Pass adJs so we can skip injecting helper functions if ad.js already has them
     var mainJsWindowOpenConverted = convertWindowOpenInJS(refactoredMainJs, refactoredAdJs)
     if (mainJsWindowOpenConverted.changed) {
@@ -3106,10 +3106,9 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 7f. Process ALL other JS files (ES6→ES5, GSAP 3→TweenMax)
-  // Files like animation.js, creative.js, timeline.js often contain animation code
+  // 7f. Process ALL other JS files (ES6→ES5, GSAP 3→TweenMax) — IXR/iPro only
   var libraryPattern = /jquery|tweenmax|tweenlite|timelinemax|timelinelite|gsap[\._-]|createjs|iscroll|webcomponents|enabler|imagesloaded/i
-  if (otherFiles) {
+  if (isIxrOrIpro && otherFiles) {
     for (var otherFilename in otherFiles) {
       if (!/\.js$/i.test(otherFilename)) continue
       if (libraryPattern.test(otherFilename)) continue
@@ -3153,8 +3152,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 8. Convert ES6 in inline scripts
-  const inlineEs6Converted = convertInlineES6(refactoredHtml)
+  // 8. Convert ES6 in inline scripts (IXR/iPro only)
+  const inlineEs6Converted = isIxrOrIpro ? convertInlineES6(refactoredHtml) : { html: refactoredHtml, changed: false, changes: [] }
   if (inlineEs6Converted.changed) {
     refactoredHtml = inlineEs6Converted.html
     appliedFixes.push({
