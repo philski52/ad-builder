@@ -126,32 +126,35 @@ export function buildContextFile(files, tasks, adMeta, importResult) {
   // --- Click Zone / URL Mapping ---
   const clickMapping = buildClickMapping(detectedUrls, config, adMeta)
 
-  // --- Animation Context ---
-  const animationContext = buildAnimationContext(animAnalysis, sceneStructure, features, config)
+  // Focus ads get minimal CLAUDE.md — skip IXR-specific sections
+  const isFocusPlatform = adPlatform === 'focus'
 
-  // --- Feature Detection Summary ---
-  const featureSummary = buildFeatureSummary(features)
+  // --- Animation Context (IXR/iPro only) ---
+  const animationContext = isFocusPlatform ? '' : buildAnimationContext(animAnalysis, sceneStructure, features, config)
 
-  // --- Detected Issues (not just applied fixes, but ALL issues found) ---
-  const issuesList = buildIssuesList(fixes)
+  // --- Feature Detection Summary (IXR/iPro only) ---
+  const featureSummary = isFocusPlatform ? '' : buildFeatureSummary(features)
 
-  // --- ISI Details ---
-  const isiDetails = buildISIDetails(features, config, adMeta)
+  // --- Detected Issues ---
+  const issuesList = isFocusPlatform ? '' : buildIssuesList(fixes)
 
-  // --- Scroll Library Replacement Guide ---
-  const scrollGuide = buildScrollLibraryGuide(features)
+  // --- ISI Details (IXR/iPro only — Focus leaves ISI as-is) ---
+  const isiDetails = isFocusPlatform ? '' : buildISIDetails(features, config, adMeta)
 
-  // --- Modal / Polite Loader Guide ---
-  const modalGuide = buildModalPoliteGuide(features)
+  // --- Scroll Library Replacement Guide (IXR/iPro only) ---
+  const scrollGuide = isFocusPlatform ? '' : buildScrollLibraryGuide(features)
 
-  // --- Iframe Removal Guide ---
-  const iframeGuide = buildIframeGuide(features)
+  // --- Modal / Polite Loader Guide (IXR/iPro only) ---
+  const modalGuide = isFocusPlatform ? '' : buildModalPoliteGuide(features)
+
+  // --- Iframe Removal Guide (IXR/iPro only) ---
+  const iframeGuide = isFocusPlatform ? '' : buildIframeGuide(features)
 
   // --- Warnings & Contradictions ---
   const warnings = buildWarnings(features, animAnalysis, adMeta, config, files, adPlatform)
 
-  // --- Pre-Implementation Checklist ---
-  const checklist = buildChecklist(features, animAnalysis, adMeta, allAssets, config)
+  // --- Pre-Implementation Checklist (IXR/iPro only) ---
+  const checklist = isFocusPlatform ? '' : buildChecklist(features, animAnalysis, adMeta, allAssets, config)
 
   return `# Ad Refactoring Context
 
