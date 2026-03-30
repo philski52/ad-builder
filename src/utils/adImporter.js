@@ -326,7 +326,7 @@ export async function parseAdZip(zipFile, options) {
     result.warnings.push(...assetResult.warnings)
 
     // 8. Check for compatibility issues (scan all JS files)
-    const compatWarnings = checkCompatibility(html, adJs, result.template?.brand, otherJsCode)
+    const compatWarnings = platform !== 'focus' ? checkCompatibility(html, adJs, result.template?.brand, otherJsCode) : []
     result.warnings.push(...compatWarnings)
 
     // 9. Detect animation library used (scan all JS files)
@@ -336,24 +336,26 @@ export async function parseAdZip(zipFile, options) {
       // No fix needed - animations are preserved in refactored export
     }
 
-    // 10. Check for animation wrapper (CP only - MR ads don't need it)
-    // Use user-selected adType if available, otherwise fall back to template brand
-    var resolvedBrand = adType || result.template?.brand
-    const hasOnWallboardIdle = html.includes('onWallboardIdleSlideDisplay') || adJs.includes('onWallboardIdleSlideDisplay')
-    if (animationLibrary && !hasOnWallboardIdle && resolvedBrand === 'cp') {
-      result.fixes.push({
-        id: 'animation-wrapper',
-        category: 'Device Compatibility',
-        issue: 'Missing onWallboardIdleSlideDisplay wrapper',
-        reason: 'CP ads require this function for devices to trigger animation playback',
-        action: 'auto',
-        resolution: 'Will wrap existing animation code in device callback'
-      })
+    // 10. Check for animation wrapper (CP only, IXR/iPro only)
+    if (platform !== 'focus') {
+      var resolvedBrand = adType || result.template?.brand
+      const hasOnWallboardIdle = html.includes('onWallboardIdleSlideDisplay') || adJs.includes('onWallboardIdleSlideDisplay')
+      if (animationLibrary && !hasOnWallboardIdle && resolvedBrand === 'cp') {
+        result.fixes.push({
+          id: 'animation-wrapper',
+          category: 'Device Compatibility',
+          issue: 'Missing onWallboardIdleSlideDisplay wrapper',
+          reason: 'CP ads require this function for devices to trigger animation playback',
+          action: 'auto',
+          resolution: 'Will wrap existing animation code in device callback'
+        })
+      }
     }
 
-    // 11. Analyze animation complexity and determine what needs manual rebuild
-    // Scan ALL JS files — animation code can live in animation.js, creative.js, timeline.js, etc.
-    result.animationAnalysis = analyzeAnimations(html, adJs, mainJs, otherJsCode)
+    // 11. Analyze animation complexity (IXR/iPro only — Focus keeps animations as-is)
+    if (platform !== 'focus') {
+      result.animationAnalysis = analyzeAnimations(html, adJs, mainJs, otherJsCode)
+    }
 
     // 12. Parse scene structure to understand asset relationships
     const sceneStructure = parseSceneStructure(html, adJs)
@@ -375,7 +377,7 @@ export async function parseAdZip(zipFile, options) {
     result.manualTasks = buildManualTasksList(result, html, adJs)
 
     // 13. Add fixes for compatibility issues
-    addCompatibilityFixes(result, html, adJs)
+    if (platform !== 'focus') addCompatibilityFixes(result, html, adJs)
 
     // 14. === APPLY REFACTORING ===
     // Generate refactored versions of the files with all auto-fixes applied
