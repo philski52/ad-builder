@@ -23,18 +23,7 @@ function TemplateGrid() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-8 py-5">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Ad Builder</h1>
-          <button
-            onClick={activateClickZoneTool}
-            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1.5 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
-            Click Zone Tool
-          </button>
-        </div>
+        <h1 className="text-2xl font-bold text-gray-900">Ad Builder</h1>
       </header>
 
       {/* Hero — Two primary actions */}
@@ -42,7 +31,7 @@ function TemplateGrid() {
         <div className="max-w-3xl mx-auto">
           <p className="text-center text-gray-600 mb-8">What would you like to do?</p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {/* Build New Ad */}
             <button
               onClick={() => setShowWizard(true)}
@@ -54,11 +43,25 @@ function TemplateGrid() {
                 </svg>
               </div>
               <div className="font-semibold text-gray-900 text-lg">Build New Ad</div>
-              <p className="text-sm text-gray-500 mt-1">Guided wizard — answer a few questions and we'll set up the right template for you</p>
+              <p className="text-sm text-gray-500 mt-1">Guided wizard — answer a few questions and we'll set up the right template</p>
             </button>
 
             {/* Import & Refactor — drop zone card */}
             <ImportAdButton dropZone />
+
+            {/* Click Zone Tool */}
+            <button
+              onClick={activateClickZoneTool}
+              className="group p-8 bg-white rounded-xl border-2 border-gray-200 hover:border-amber-500 hover:shadow-lg transition-all text-left"
+            >
+              <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-amber-200 transition-colors">
+                <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+              </div>
+              <div className="font-semibold text-gray-900 text-lg">Click Zone Tool</div>
+              <p className="text-sm text-gray-500 mt-1">Upload an ad to visually place and edit click zones</p>
+            </button>
           </div>
         </div>
       </div>
