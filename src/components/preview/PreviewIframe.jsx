@@ -1,25 +1,20 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
 import { hasFeature } from '../../templates'
-import { generateHTML, generateCSS, generateScrollerCSS, generateMainJS, generateAdJS, generateClicksCSS } from '../../utils/templateGenerator'
+import { generateHTML, generateCSS, generateScrollerCSS, generateScrollerJS, generateAdJS, generateClicksCSS, generateExpandableCSS, generateExpandCollapseJS } from '../../utils/templateGenerator'
 
-function DeviceSimulator({ dimensions, scale, children }) {
-  const frameWidth = dimensions.width * scale + 32
-  const frameHeight = dimensions.height * scale + 32
+function BrowserPreview({ dimensions, scale, children }) {
+  const frameWidth = dimensions.width * scale + 2
+  const frameHeight = dimensions.height * scale + 2
 
   return (
-    <div className="relative inline-block">
+    <div className="inline-block">
       <div
-        className="bg-gray-800 rounded-3xl p-4 shadow-xl"
+        className="border border-gray-300 rounded-lg overflow-hidden shadow-lg bg-white"
         style={{ width: frameWidth, height: frameHeight }}
       >
-        <div className="bg-black rounded-2xl p-2 h-full">
-          <div className="bg-gray-900 rounded-xl overflow-hidden h-full">
-            {children}
-          </div>
-        </div>
+        {children}
       </div>
-      <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 w-1/3 h-1 bg-gray-600 rounded-full" />
     </div>
   )
 }
@@ -98,23 +93,29 @@ function PreviewIframe() {
     if (!currentTemplate) return ''
 
     const hasISI = hasFeature(currentTemplate, 'isi')
+    const hasExpandable = hasFeature(currentTemplate, 'expandable') && config.expandableEnabled
     let html = generateHTML(currentTemplate, config, assets, animations)
     const css = generateCSS(config)
     const scrollerCss = hasISI ? generateScrollerCSS(config) : ''
-    const mainJs = hasISI ? generateMainJS(config) : ''
+    const scrollerJs = generateScrollerJS(config)
     const adJs = generateAdJS(config)
     const clicksCss = generateClicksCSS(config)
+    const expandableCss = hasExpandable ? generateExpandableCSS(config) : ''
+    const expandCollapseJs = hasExpandable ? generateExpandCollapseJS(config) : ''
 
     // Inline CSS
-    html = html.replace('<link rel="stylesheet" href="css/main.css">', `<style>${css}\n${scrollerCss}\n${clicksCss}</style>`)
+    html = html.replace('<link rel="stylesheet" href="css/main.css">', `<style>${css}\n${scrollerCss}\n${clicksCss}\n${expandableCss}</style>`)
     html = html.replace(/<link rel="stylesheet" href="css\/[^"]+\.css">/g, '')
 
     // Inline ad.js
     html = html.replace('<script src="script/ad.js"></script>', `<script>${adJs}</script>`)
 
-    // Inline main.js for ISI templates
-    if (hasISI) {
-      html = html.replace('<script src="script/main.js"></script>', `<script>${mainJs}</script>`)
+    // Inline scroller.js
+    html = html.replace('<script src="script/scroller.js"></script>', `<script>${scrollerJs}</script>`)
+
+    // Inline expandCollapse.js for expandable templates
+    if (hasExpandable) {
+      html = html.replace('<script src="script/expandCollapse.js"></script>', `<script>${expandCollapseJs}</script>`)
     }
 
     // Remove external script refs
@@ -144,9 +145,11 @@ function PreviewIframe() {
         </div>`
       }).join('')
 
+      // Insert zone indicators inside #isi-content-wrapper (before its closing tag)
+      // so they scroll with the ISI content
       html = html.replace(
-        '<div id="isi-controls">',
-        `${zoneIndicatorsHTML}<div id="isi-controls">`
+        '</div>\n            </div>\n            <div id="isi-controls">',
+        `${zoneIndicatorsHTML}</div>\n            </div>\n            <div id="isi-controls">`
       )
 
       // Add drag/resize script for ISI zones
@@ -213,13 +216,16 @@ function PreviewIframe() {
               active.style.left = newLeft + 'px';
               active.style.top = newTop + 'px';
             } else if (mode === 'right') {
-              active.style.width = Math.max(20, startWidth + deltaX) + 'px';
+              var newWidth = Math.max(20, startWidth + deltaX);
+              var maxWidth = maxLeft - startLeft + 50;
+              active.style.width = Math.min(newWidth, maxWidth) + 'px';
             } else if (mode === 'bottom') {
               active.style.height = Math.max(20, startHeight + deltaY) + 'px';
             } else if (mode === 'left') {
               var dw = Math.min(deltaX, startWidth - 20);
-              active.style.left = (startLeft + dw) + 'px';
-              active.style.width = (startWidth - dw) + 'px';
+              var newLeftPos = Math.max(0, startLeft + dw);
+              active.style.left = newLeftPos + 'px';
+              active.style.width = (startWidth - (newLeftPos - startLeft)) + 'px';
             } else if (mode === 'top') {
               var dh = Math.min(deltaY, startHeight - 20);
               active.style.top = (startTop + dh) + 'px';
@@ -304,6 +310,12 @@ function PreviewIframe() {
           html = html.replace(`src="assets/frame${i + 1}.png"`, `src="${frame.dataUrl}"`)
         }
       })
+    }
+    if (assets.expandButtonImage?.dataUrl) {
+      html = html.replace('src="assets/expand-button.png"', `src="${assets.expandButtonImage.dataUrl}"`)
+    }
+    if (assets.collapseButtonImage?.dataUrl) {
+      html = html.replace('src="assets/collapse-button.png"', `src="${assets.collapseButtonImage.dataUrl}"`)
     }
 
     return html
@@ -498,7 +510,7 @@ function PreviewIframe() {
         </button>
       </div>
 
-      <DeviceSimulator dimensions={config.dimensions} scale={scale}>
+      <BrowserPreview dimensions={config.dimensions} scale={scale}>
         <div
           ref={containerRef}
           style={{
@@ -686,7 +698,7 @@ function PreviewIframe() {
             )
           })}
         </div>
-      </DeviceSimulator>
+      </BrowserPreview>
 
       <p className="text-center text-xs text-gray-400">{config.dimensions.width} x {config.dimensions.height}px</p>
     </div>

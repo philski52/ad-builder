@@ -1,5 +1,4 @@
-import { useProjectStore } from '../../stores/projectStore'
-import { hasFeature } from '../../templates'
+import { useClickZoneToolStore } from '../../stores/clickZoneToolStore'
 
 const LINK_TYPES = [
   { value: 'url', label: 'Open URL', description: 'Opens external webpage in fullscreen browser' },
@@ -7,87 +6,58 @@ const LINK_TYPES = [
   { value: 'mod', label: 'Open Mod', description: 'Opens modal ad (secondary HTML)' }
 ]
 
-function ClickZonesEditor() {
-  const config = useProjectStore((state) => state.config)
-  const currentTemplate = useProjectStore((state) => state.currentTemplate)
-  const updateConfig = useProjectStore((state) => state.updateConfig)
+const PRESET_ZONES = [
+  { id: 'clickTag1', label: 'Main Click Area', defaultLinkType: 'url' },
+  { id: 'pi-isi', label: 'Prescribing Info (PI)', defaultLinkType: 'pdf' },
+  { id: 'mg-isi', label: 'Medication Guide (MG)', defaultLinkType: 'pdf' },
+  { id: 'fda', label: 'FDA Link', defaultLinkType: 'url' },
+]
 
-  const hasISI = hasFeature(currentTemplate, 'isi')
-  const hasVideo = hasFeature(currentTemplate, 'video')
-  const zones = config.clickZones || []
+function ClickZoneToolPanel() {
+  const clickZones = useClickZoneToolStore((s) => s.clickZones)
+  const dimensions = useClickZoneToolStore((s) => s.dimensions)
+  const selectedZoneIndex = useClickZoneToolStore((s) => s.selectedZoneIndex)
+  const addZone = useClickZoneToolStore((s) => s.addZone)
+  const updateZone = useClickZoneToolStore((s) => s.updateZone)
+  const removeZone = useClickZoneToolStore((s) => s.removeZone)
+  const setSelectedZone = useClickZoneToolStore((s) => s.setSelectedZone)
 
-  const presetZones = [
-    { id: 'clickTag1', label: 'Main Click Area', defaultLinkType: 'url' },
-    { id: 'pi-isi', label: 'Prescribing Info (PI)', defaultLinkType: 'pdf' },
-    { id: 'mg-isi', label: 'Medication Guide (MG)', defaultLinkType: 'pdf' },
-    { id: 'fda', label: 'FDA Link', defaultLinkType: 'url' },
-  ]
-
-  const addZone = (preset = null) => {
-    const newZone = preset ? {
+  const handleAddPreset = (preset) => {
+    addZone({
       id: preset.id,
       url: 'https://education.patientpoint.com/failsafe-page/',
       linkType: preset.defaultLinkType || 'url',
-      jobId: '',
       top: preset.id === 'clickTag1' ? 0 : 100,
       left: preset.id === 'clickTag1' ? 0 : 50,
-      width: preset.id === 'clickTag1' ? config.dimensions.width : 200,
-      height: preset.id === 'clickTag1' ? (config.isiTop || 600) : 30,
-      inISI: preset.id !== 'clickTag1'
-    } : {
+      width: preset.id === 'clickTag1' ? dimensions.width : 200,
+      height: preset.id === 'clickTag1' ? dimensions.height : 30
+    })
+  }
+
+  const handleAddCustom = () => {
+    addZone({
       id: `zone-${Date.now()}`,
       url: 'https://',
       linkType: 'url',
-      jobId: '',
       top: 100,
       left: 50,
       width: 200,
-      height: 50,
-      inISI: false
-    }
-
-    updateConfig('clickZones', [...zones, newZone])
+      height: 50
+    })
   }
 
-  const updateZone = (index, field, value) => {
-    const newZones = [...zones]
-    newZones[index] = { ...newZones[index], [field]: value }
-    updateConfig('clickZones', newZones)
-  }
-
-  const removeZone = (index) => {
-    const newZones = zones.filter((_, i) => i !== index)
-    updateConfig('clickZones', newZones)
-  }
-
-  const availablePresets = presetZones.filter(p => !zones.some(z => z.id === p.id))
+  const availablePresets = PRESET_ZONES.filter(p => !clickZones.some(z => z.id === p.id))
 
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Click Zones</h2>
+        <span className="text-xs text-gray-400">{clickZones.length} zone{clickZones.length !== 1 ? 's' : ''}</span>
       </div>
 
       <p className="text-sm text-gray-600">
-        Define clickable areas, their link types, and destination URLs.
+        Detected zones are shown in amber. Adjust positions or add new zones.
       </p>
-
-      {/* Global Job ID for mod fallback */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-        <label className="block text-sm font-medium text-blue-800 mb-1">
-          Job ID (for Mod fallback)
-        </label>
-        <input
-          type="text"
-          value={config.jobId || ''}
-          onChange={(e) => updateConfig('jobId', e.target.value)}
-          className="w-full px-3 py-2 border border-blue-300 rounded text-sm"
-          placeholder="e.g., 1234"
-        />
-        <p className="text-xs text-blue-600 mt-1">
-          Used in fallback URL: patientpointdemo.com/banner_review/IADS-[jobId]/...
-        </p>
-      </div>
 
       {/* Add Zone Buttons */}
       <div className="space-y-2">
@@ -95,7 +65,7 @@ function ClickZonesEditor() {
           {availablePresets.map(preset => (
             <button
               key={preset.id}
-              onClick={() => addZone(preset)}
+              onClick={() => handleAddPreset(preset)}
               className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
             >
               + {preset.label}
@@ -103,7 +73,7 @@ function ClickZonesEditor() {
           ))}
         </div>
         <button
-          onClick={() => addZone(null)}
+          onClick={handleAddCustom}
           className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
         >
           + Custom Zone
@@ -112,17 +82,31 @@ function ClickZonesEditor() {
 
       {/* Zone List */}
       <div className="space-y-3">
-        {zones.map((zone, index) => (
-          <div key={zone.id + index} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+        {clickZones.map((zone, index) => (
+          <div
+            key={'zone-' + index}
+            className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+              selectedZoneIndex === index
+                ? 'border-blue-400 bg-blue-50'
+                : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+            }`}
+            onClick={() => setSelectedZone(index)}
+          >
             <div className="flex items-center justify-between mb-3">
-              <input
-                type="text"
-                value={zone.id}
-                onChange={(e) => updateZone(index, 'id', e.target.value)}
-                className="font-medium text-sm bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none"
-              />
+              <div className="flex items-center gap-2">
+                {zone.detected && (
+                  <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">detected</span>
+                )}
+                <input
+                  type="text"
+                  value={zone.id}
+                  onChange={(e) => updateZone(index, 'id', e.target.value)}
+                  className="font-medium text-sm bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
               <button
-                onClick={() => removeZone(index)}
+                onClick={(e) => { e.stopPropagation(); removeZone(index) }}
                 className="text-red-500 hover:text-red-700 text-sm"
               >
                 Remove
@@ -137,7 +121,7 @@ function ClickZonesEditor() {
                   {LINK_TYPES.map(lt => (
                     <button
                       key={lt.value}
-                      onClick={() => updateZone(index, 'linkType', lt.value)}
+                      onClick={(e) => { e.stopPropagation(); updateZone(index, 'linkType', lt.value) }}
                       className={`flex-1 px-2 py-1.5 text-xs rounded border transition-colors ${
                         zone.linkType === lt.value
                           ? 'bg-blue-600 text-white border-blue-600'
@@ -160,6 +144,7 @@ function ClickZonesEditor() {
                   type="text"
                   value={zone.url}
                   onChange={(e) => updateZone(index, 'url', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
                   className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
                   placeholder={zone.linkType === 'mod' ? 'mod/index.html' : 'https://...'}
                 />
@@ -169,44 +154,31 @@ function ClickZonesEditor() {
               {zone.linkType === 'mod' && (
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">
-                    Job ID Override <span className="text-gray-400">(optional)</span>
+                    Job ID <span className="text-gray-400">(optional)</span>
                   </label>
                   <input
                     type="text"
                     value={zone.jobId || ''}
                     onChange={(e) => updateZone(index, 'jobId', e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
                     className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
-                    placeholder={`Uses global: ${config.jobId || '(not set)'}`}
+                    placeholder="e.g., 1234"
                   />
                 </div>
               )}
 
-              {hasISI && (
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={zone.inISI || false}
-                    onChange={(e) => updateZone(index, 'inISI', e.target.checked)}
-                    className="rounded border-gray-300"
-                  />
-                  <span>In ISI</span>
-                  <span className="text-xs text-gray-500">(scrolls with ISI content)</span>
-                </label>
-              )}
+              {/* In ISI toggle */}
+              <label className="flex items-center gap-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={zone.inISI || false}
+                  onChange={(e) => updateZone(index, 'inISI', e.target.checked)}
+                  className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                />
+                <span className="text-xs text-gray-600">In ISI <span className="text-gray-400">(place inside scrollable ISI content)</span></span>
+              </label>
 
-              {hasVideo && (
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={zone.pauseVideo || false}
-                    onChange={(e) => updateZone(index, 'pauseVideo', e.target.checked)}
-                    className="rounded border-gray-300"
-                  />
-                  <span>Pause Video</span>
-                  <span className="text-xs text-gray-500">(pauses video when clicked)</span>
-                </label>
-              )}
-
+              {/* Position & Size */}
               <div className="grid grid-cols-4 gap-2">
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Left</label>
@@ -214,6 +186,7 @@ function ClickZonesEditor() {
                     type="number"
                     value={zone.left}
                     onChange={(e) => updateZone(index, 'left', parseInt(e.target.value) || 0)}
+                    onClick={(e) => e.stopPropagation()}
                     className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                   />
                 </div>
@@ -223,6 +196,7 @@ function ClickZonesEditor() {
                     type="number"
                     value={zone.top}
                     onChange={(e) => updateZone(index, 'top', parseInt(e.target.value) || 0)}
+                    onClick={(e) => e.stopPropagation()}
                     className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                   />
                 </div>
@@ -232,6 +206,7 @@ function ClickZonesEditor() {
                     type="number"
                     value={zone.width}
                     onChange={(e) => updateZone(index, 'width', parseInt(e.target.value) || 100)}
+                    onClick={(e) => e.stopPropagation()}
                     className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                   />
                 </div>
@@ -241,21 +216,22 @@ function ClickZonesEditor() {
                     type="number"
                     value={zone.height}
                     onChange={(e) => updateZone(index, 'height', parseInt(e.target.value) || 30)}
+                    onClick={(e) => e.stopPropagation()}
                     className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                   />
                 </div>
               </div>
 
               <div className="text-xs text-gray-400 mt-1">
-                {zone.inISI ? 'Position relative to ISI content' : 'Position relative to ad container'}
+                Position relative to ad container
               </div>
             </div>
           </div>
         ))}
 
-        {zones.length === 0 && (
+        {clickZones.length === 0 && (
           <div className="text-center py-8 text-gray-400">
-            <p>No click zones defined</p>
+            <p>No click zones detected or added</p>
             <p className="text-sm">Add zones using the buttons above</p>
           </div>
         )}
@@ -264,4 +240,4 @@ function ClickZonesEditor() {
   )
 }
 
-export default ClickZonesEditor
+export default ClickZoneToolPanel

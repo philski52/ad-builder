@@ -7,11 +7,14 @@ function Sidebar({ activeSection, onSectionChange }) {
   const sections = [
     { id: 'assets', label: 'Assets', icon: 'image' },
     { id: 'config', label: 'Configuration', icon: 'settings' },
-    ...(currentTemplate && !hasFeature(currentTemplate, 'video')
+    ...(currentTemplate && (!hasFeature(currentTemplate, 'video') || hasFeature(currentTemplate, 'background'))
       ? [{ id: 'zones', label: 'Click Zones', icon: 'link' }]
       : []),
     ...(currentTemplate && hasFeature(currentTemplate, 'isi')
       ? [{ id: 'isi', label: 'ISI Content', icon: 'document' }]
+      : []),
+    ...(currentTemplate && hasFeature(currentTemplate, 'expandable')
+      ? [{ id: 'expandable', label: 'Expandable ISI', icon: 'expand' }]
       : []),
     ...(currentTemplate && hasFeature(currentTemplate, 'animation')
       ? [{ id: 'animation', label: 'Animation', icon: 'play' }]
@@ -40,6 +43,11 @@ function Sidebar({ activeSection, onSectionChange }) {
     document: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+    expand: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
       </svg>
     ),
     play: (

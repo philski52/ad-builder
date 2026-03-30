@@ -11,13 +11,14 @@ function AssetManager() {
 
   const hasISI = hasFeature(currentTemplate, 'isi')
   const hasVideo = hasFeature(currentTemplate, 'video')
+  const hasBackground = hasFeature(currentTemplate, 'background')
 
   return (
     <div className="p-4 space-y-6">
       <h2 className="text-lg font-semibold">Assets</h2>
 
       {/* Background Image */}
-      {!hasVideo && (
+      {(!hasVideo || hasBackground) && (
         <AssetUploader
           label="Background Image"
           description={`Upload main background (${currentTemplate.dimensions.width}x${currentTemplate.dimensions.height})`}
@@ -93,6 +94,30 @@ function AssetManager() {
             </label>
           )}
         </div>
+      )}
+
+      {/* Video Thumbnail */}
+      {hasBackground && hasVideo && (
+        <AssetUploader
+          label="Video Thumbnail"
+          description="Poster image shown before video plays"
+          accept="image/*"
+          currentAsset={assets.thumbnail}
+          onUpload={(result) => setAsset('thumbnail', result)}
+          onRemove={() => setAsset('thumbnail', null)}
+        />
+      )}
+
+      {/* Play Button */}
+      {hasBackground && hasVideo && (
+        <AssetUploader
+          label="Play Button"
+          description="Image shown to trigger video playback"
+          accept="image/*"
+          currentAsset={assets.playButton}
+          onUpload={(result) => setAsset('playButton', result)}
+          onRemove={() => setAsset('playButton', null)}
+        />
       )}
 
       {/* Asset Requirements */}

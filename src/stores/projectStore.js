@@ -20,8 +20,15 @@ export const useProjectStore = create(
         background: null,
         frames: [],
         isiImage: null,
-        video: null
+        video: null,
+        thumbnail: null,
+        playButton: null,
+        expandButtonImage: null,
+        collapseButtonImage: null
       },
+
+      // Unmapped assets from import (available for manual assignment)
+      unmappedAssets: [],
 
       // Configuration values
       config: {
@@ -36,23 +43,67 @@ export const useProjectStore = create(
         isiWidth: 1080,
         isiLeft: 0,
         isiBackgroundColor: '#ffffff',
-        // Scroller styling
+        // ISI Image (ISI_guts) settings
+        isiImageWidth: 1080,
+        isiImageLeft: 0,
+        isiImageTop: 0,
+        // Scroller styling (the draggable thumb)
         scrollerColor: '#798280',
         scrollerWidth: 12,
         scrollerHeight: 35,
         scrollerBorderRadius: 50,
+        // Scroller track (isiLineNoArrows) settings
         scrollerTrackColor: '#b8bebc',
         scrollerTrackWidth: 12,
+        scrollerTrackRight: 0,
+        scrollerTrackBorderRadius: 50,
         // Scroll behavior
         autoScrollSpeed: 80,
         scrollStep: 5,
         // Animation settings
         frameDuration: 0.5,
         frameDelay: 1,
-        expandedHeight: 1742,
-        collapseDuration: 1,
+        // Expandable ISI settings
+        expandableEnabled: false,
+        // Collapsed state (initial)
+        expandableCollapsedHeight: 450,
+        expandableCollapsedTop: 1100,
+        // Expanded state
+        expandableExpandedHeight: 1742,
+        expandableExpandedTop: 42,
+        expandableControlsHeightPercent: 84,
+        // Animation
+        expandableDuration: 1,
+        // Expand button
+        expandButtonMode: 'text', // 'text' or 'image'
+        expandButtonText: 'CLICK HERE TO EXPAND SAFETY INFORMATION',
+        expandButtonTop: 1040,
+        expandButtonLeft: 0,
+        expandButtonWidth: 1080,
+        expandButtonHeight: 41,
+        expandButtonBgColor: '#532f87',
+        expandButtonTextColor: '#ffffff',
+        expandButtonFontSize: 16,
+        expandButtonBorderRadius: 50,
+        // Collapse button
+        collapseButtonMode: 'text', // 'text' or 'image'
+        collapseButtonText: 'CLICK HERE TO COLLAPSE SAFETY INFORMATION',
+        collapseButtonTop: 0,
+        collapseButtonLeft: 0,
+        collapseButtonWidth: 1080,
+        collapseButtonHeight: 41,
+        collapseButtonBgColor: '#532f87',
+        collapseButtonTextColor: '#ffffff',
+        collapseButtonFontSize: 16,
+        collapseButtonBorderRadius: 50,
         // Video settings
         videoHeight: 562,
+        videoTop: 134,
+        videoLeft: 65,
+        videoWidth: 876,
+        playBtnTop: 432,
+        playBtnLeft: 419,
+        playBtnWidth: 146,
         showVideoControls: true,
         // Button settings (for INT templates)
         buttonCount: 2,
@@ -66,7 +117,7 @@ export const useProjectStore = create(
         // linkType: 'url' | 'pdf' | 'mod'
         // jobId: string (for mod fallback URL)
         clickZones: [
-          { id: 'clickTag1', url: 'https://education.patientpoint.com/failsafe-page/', linkType: 'url', jobId: '', top: 0, left: 0, width: 1080, height: 1193, inISI: false }
+          { id: 'clickTag1', url: 'https://education.patientpoint.com/failsafe-page/', linkType: 'url', jobId: '', top: 0, left: 0, width: 1080, height: 1193, inISI: false, pauseVideo: false }
         ],
         // Global job ID for mod fallback (used if zone doesn't specify one)
         jobId: ''
@@ -113,7 +164,8 @@ export const useProjectStore = create(
                 left: 0,
                 width: template.dimensions.width,
                 height: hasISI ? isiDefaults.isiTop : template.dimensions.height,
-                inISI: false
+                inISI: false,
+                pauseVideo: false
               }
             ],
             jobId: ''
@@ -128,7 +180,9 @@ export const useProjectStore = create(
           background: null,
           frames: [],
           isiImage: null,
-          video: null
+          video: null,
+          thumbnail: null,
+          playButton: null
         },
         animations: [],
         isPreviewDirty: false
@@ -262,6 +316,85 @@ export const useProjectStore = create(
           isiContent: projectData.isiContent || get().isiContent,
           animations: projectData.animations || [],
           assets: projectData.assets,
+          isPreviewDirty: true
+        })
+      },
+
+      // Import from ad analysis result (parsed ZIP file)
+      importFromAnalysis: (analysisResult) => {
+        if (!analysisResult.template) {
+          console.error('No template detected in import')
+          return
+        }
+
+        const state = get()
+        const template = analysisResult.template
+
+        // Build assets object from analysis
+        const assets = {
+          background: analysisResult.assets.background || null,
+          frames: analysisResult.assets.frames || [],
+          isiImage: analysisResult.assets.isiImage || null,
+          video: analysisResult.assets.video || null,
+          thumbnail: analysisResult.assets.thumbnail || null,
+          playButton: analysisResult.assets.playButton || null,
+          expandButtonImage: analysisResult.assets.expandButtonImage || null,
+          collapseButtonImage: analysisResult.assets.collapseButtonImage || null
+        }
+
+        // Store unmapped assets for manual assignment
+        const unmappedAssets = (analysisResult.allAssets || [])
+          .filter(a => !a.mapped)
+          .map(a => ({
+            filename: a.filename,
+            dataUrl: a.dataUrl,
+            type: a.type,
+            isSvg: a.isSvg,
+            suggestedSlot: a.suggestedSlot,
+            scene: a.scene,
+            element: a.element,
+            context: a.context
+          }))
+
+        // Merge config - start with defaults from template, then overlay extracted values
+        const isiDefaults = template.brand === 'cp' ? { isiWidth: 1080, isiHeight: 540, isiTop: 1193, isiLeft: 0 }
+          : template.brand === 'mr' ? { isiWidth: 300, isiHeight: 100, isiTop: 150, isiLeft: 0 }
+          : { isiWidth: 1080, isiHeight: 540, isiTop: 1193, isiLeft: 0 }
+
+        const hasISI = template.features?.includes('isi')
+
+        const config = {
+          ...state.config,
+          dimensions: analysisResult.config.dimensions || template.dimensions,
+          ...(hasISI ? isiDefaults : {}),
+          // Overlay all extracted config values
+          ...Object.fromEntries(
+            Object.entries(analysisResult.config).filter(([_, v]) => v !== null && v !== undefined)
+          )
+        }
+
+        // Generate project name from template
+        const projectName = `imported-${template.id}-${Date.now()}`
+
+        // Import extracted animations with proper IDs and preserve original selector
+        const animations = (analysisResult.animations || []).map((anim, i) => ({
+          id: `anim-imported-${i}-${Date.now()}`,
+          target: anim.target,
+          originalSelector: anim.originalSelector,
+          type: anim.type || 'in',
+          effects: anim.effects || {},
+          duration: anim.duration || 0.5,
+          startTime: anim.startTime || 0,
+          easing: anim.easing || 'Power1.easeOut'
+        }))
+
+        set({
+          currentTemplate: template,
+          projectName,
+          assets,
+          unmappedAssets,
+          config,
+          animations,
           isPreviewDirty: true
         })
       }
