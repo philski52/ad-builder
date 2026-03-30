@@ -116,16 +116,56 @@ function ImportAdButton({ dropZone }) {
     setPickerStep('platform')
   }
 
+  // Recursively read a dropped directory entry into an array of {file, path} objects
+  const readDirectoryEntries = (dirEntry, basePath) => {
+    return new Promise((resolve) => {
+      const reader = dirEntry.createReader()
+      const allFiles = []
+      const readBatch = () => {
+        reader.readEntries(async (entries) => {
+          if (entries.length === 0) {
+            resolve(allFiles)
+            return
+          }
+          for (const entry of entries) {
+            const entryPath = basePath ? basePath + '/' + entry.name : entry.name
+            if (entry.isFile) {
+              const file = await new Promise((res) => entry.file(res))
+              // Attach webkitRelativePath so parseAdFolder can use it
+              Object.defineProperty(file, 'webkitRelativePath', { value: entryPath })
+              allFiles.push(file)
+            } else if (entry.isDirectory) {
+              const subFiles = await readDirectoryEntries(entry, entryPath)
+              allFiles.push(...subFiles)
+            }
+          }
+          readBatch() // continue reading (batched API)
+        })
+      }
+      readBatch()
+    })
+  }
+
   // After platform/adType selected with a dropped file, skip upload type and process directly
-  const processDroppedFile = async (platform, adType) => {
-    if (!droppedFile) return
+  // Accepts optional file param for cases where state hasn't updated yet (e.g. modal drop)
+  // file can be a File (ZIP) or an Array of Files (folder drop from landing card)
+  const processDroppedFile = async (platform, adType, file) => {
+    const fileToProcess = file || droppedFile
+    if (!fileToProcess) return
     setPickerStep(null)
     setError(null)
     setIsLoading(true)
 
     try {
-      const result = await parseAdZip(droppedFile, { platform, adType })
-      await startRefactor(result, droppedFile, platform, adType)
+      let result
+      if (Array.isArray(fileToProcess)) {
+        // Folder drop — array of files with webkitRelativePath
+        result = await parseAdFolder(fileToProcess, { platform, adType })
+        await startRefactor(result, fileToProcess[0], platform, adType)
+      } else {
+        result = await parseAdZip(fileToProcess, { platform, adType })
+        await startRefactor(result, fileToProcess, platform, adType)
+      }
     } catch (err) {
       setError(`Failed to parse: ${err.message}`)
     } finally {
@@ -133,6 +173,40 @@ function ImportAdButton({ dropZone }) {
       setSelectedPlatform(null)
       setSelectedAdType(null)
       setDroppedFile(null)
+    }
+  }
+
+  // Handle a drop event that could be a ZIP or a folder
+  const processDropOrFolder = async (dataTransfer, platform, adType) => {
+    const items = dataTransfer.items
+    if (!items || items.length === 0) return
+
+    const entry = items[0].webkitGetAsEntry && items[0].webkitGetAsEntry()
+
+    if (entry && entry.isDirectory) {
+      // Folder drop — recursively read all files, then use parseAdFolder
+      setPickerStep(null)
+      setError(null)
+      setIsLoading(true)
+      try {
+        const files = await readDirectoryEntries(entry, entry.name)
+        if (files.length === 0) throw new Error('Dropped folder is empty')
+        const result = await parseAdFolder(files, { platform, adType })
+        await startRefactor(result, files[0], platform, adType)
+      } catch (err) {
+        setError(`Failed to parse folder: ${err.message}`)
+      } finally {
+        setIsLoading(false)
+        setSelectedPlatform(null)
+        setSelectedAdType(null)
+        setDroppedFile(null)
+      }
+    } else {
+      // File drop (ZIP) — use existing flow
+      const file = dataTransfer.files?.[0]
+      if (file) {
+        processDroppedFile(platform, adType, file)
+      }
     }
   }
 
@@ -215,9 +289,20 @@ function ImportAdButton({ dropZone }) {
   const onDropFile = (e) => {
     e.preventDefault()
     setIsDragging(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) {
-      handleDrop(file)
+    // Store the full dataTransfer so we can detect folders after platform selection
+    const items = e.dataTransfer.items
+    const entry = items?.[0]?.webkitGetAsEntry && items[0].webkitGetAsEntry()
+    if (entry && entry.isDirectory) {
+      // For folders, we need to read entries now (dataTransfer is cleared after the event)
+      readDirectoryEntries(entry, entry.name).then((files) => {
+        setDroppedFile(files) // store as array of files for folder processing
+        setPickerStep('platform')
+      })
+    } else {
+      const file = e.dataTransfer.files?.[0]
+      if (file) {
+        handleDrop(file)
+      }
     }
   }
 
@@ -354,7 +439,7 @@ function ImportAdButton({ dropZone }) {
               </>
             )}
 
-            {/* Step 3: Upload type — ZIP or Folder */}
+            {/* Step 3: Upload — unified drop zone + browse buttons */}
             {pickerStep === 'uploadType' && (
               <>
                 <div className="flex items-center gap-2 mb-1">
@@ -365,35 +450,57 @@ function ImportAdButton({ dropZone }) {
                   </button>
                   <h2 className="text-lg font-semibold text-gray-900">Upload Ad</h2>
                 </div>
-                <p className="text-sm text-gray-500 mb-4">How would you like to upload?</p>
-                <div className="space-y-3">
+                <p className="text-sm text-gray-500 mb-4">Drag and drop a ZIP or folder, or browse below</p>
+
+                {/* Unified drop zone — auto-detects ZIP vs folder */}
+                <div
+                  className={'flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 mb-4 transition-colors ' + (isDragging ? 'border-green-500 bg-green-50' : 'border-gray-300')}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true) }}
+                  onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false) }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setIsDragging(false)
+                    processDropOrFolder(e.dataTransfer, selectedPlatform, selectedAdType)
+                  }}
+                >
+                  <svg className={'w-10 h-10 mb-3 ' + (isDragging ? 'text-green-500' : 'text-gray-400')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  {isDragging ? (
+                    <p className="text-sm font-medium text-green-600">Drop here</p>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-gray-700">Drop ZIP or folder here</p>
+                      <p className="text-xs text-gray-400 mt-1">auto-detects file type</p>
+                    </>
+                  )}
+                </div>
+
+                <div className="relative flex items-center mb-4">
+                  <div className="flex-grow border-t border-gray-200"></div>
+                  <span className="flex-shrink mx-3 text-xs text-gray-400 uppercase">or browse</span>
+                  <div className="flex-grow border-t border-gray-200"></div>
+                </div>
+
+                <div className="flex gap-3">
                   <button
                     onClick={() => handleUploadType('zip')}
-                    className="w-full flex items-center gap-4 p-4 rounded-lg border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                    className="flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors"
                   >
-                    <div className="text-gray-600 flex-shrink-0">
-                      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900">ZIP File</div>
-                      <div className="text-sm text-gray-500">Upload a .zip archive</div>
-                    </div>
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8" />
+                    </svg>
+                    <span className="text-sm font-medium text-gray-700">ZIP File</span>
                   </button>
                   <button
                     onClick={() => handleUploadType('folder')}
-                    className="w-full flex items-center gap-4 p-4 rounded-lg border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                    className="flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors"
                   >
-                    <div className="text-gray-600 flex-shrink-0">
-                      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900">Folder</div>
-                      <div className="text-sm text-gray-500">Select an ad folder from your computer</div>
-                    </div>
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    <span className="text-sm font-medium text-gray-700">Folder</span>
                   </button>
                 </div>
                 <button onClick={handleCancel} className="mt-4 w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
