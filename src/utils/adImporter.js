@@ -3082,8 +3082,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 7d. Convert GSAP 3.x to TweenMax 2.0.1 in ad.js (skip webpack bundles)
-  var gsap3Converted = !isUnsafeBundledCode(refactoredAdJs) ? convertGsap3ToTweenMax(refactoredAdJs) : { js: refactoredAdJs, changed: false, changes: [] }
+  // 7d. Convert GSAP 3.x to TweenMax 2.0.1 in ad.js (IXR/iPro only — Focus has internet, GSAP 3 works)
+  var gsap3Converted = (isIxrOrIpro && !isUnsafeBundledCode(refactoredAdJs)) ? convertGsap3ToTweenMax(refactoredAdJs) : { js: refactoredAdJs, changed: false, changes: [] }
   if (gsap3Converted.changed) {
     refactoredAdJs = gsap3Converted.js
     appliedFixes.push({
@@ -3093,8 +3093,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     })
   }
 
-  // 7e. Convert GSAP 3.x to TweenMax 2.0.1 in main.js (skip webpack bundles)
-  if (refactoredMainJs && !isUnsafeBundledCode(refactoredMainJs)) {
+  // 7e. Convert GSAP 3.x to TweenMax 2.0.1 in main.js (IXR/iPro only)
+  if (isIxrOrIpro && refactoredMainJs && !isUnsafeBundledCode(refactoredMainJs)) {
     var mainJsGsap3Converted = convertGsap3ToTweenMax(refactoredMainJs)
     if (mainJsGsap3Converted.changed) {
       refactoredMainJs = mainJsGsap3Converted.js
@@ -3132,12 +3132,14 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
         otherChanges = otherChanges.concat(otherEs6.changes)
       }
 
-      // GSAP 3 → TweenMax
-      var otherGsap = convertGsap3ToTweenMax(otherContent)
-      if (otherGsap.changed) {
-        otherContent = otherGsap.js
-        otherChanged = true
-        otherChanges = otherChanges.concat(otherGsap.changes)
+      // GSAP 3 → TweenMax (IXR/iPro only — Focus has internet, GSAP 3 works)
+      if (isIxrOrIpro) {
+        var otherGsap = convertGsap3ToTweenMax(otherContent)
+        if (otherGsap.changed) {
+          otherContent = otherGsap.js
+          otherChanged = true
+          otherChanges = otherChanges.concat(otherGsap.changes)
+        }
       }
 
       if (otherChanged) {
@@ -3465,52 +3467,55 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 19. Remove Google Fonts CDN links (won't work offline on devices)
-  if (result.features?.hasGoogleFonts) {
-    var fontsRemoved = removeGoogleFontsCDN(refactoredHtml)
-    if (fontsRemoved.changed) {
-      refactoredHtml = fontsRemoved.html
+  // 19-21: CDN and font removal (IXR/iPro only — Focus has internet access)
+  if (isIxrOrIpro) {
+    // 19. Remove Google Fonts CDN links (won't work offline on devices)
+    if (result.features?.hasGoogleFonts) {
+      var fontsRemoved = removeGoogleFontsCDN(refactoredHtml)
+      if (fontsRemoved.changed) {
+        refactoredHtml = fontsRemoved.html
+        appliedFixes.push({
+          id: 'remove-google-fonts',
+          description: 'Removed Google Fonts CDN links (devices are offline)',
+          details: fontsRemoved.changes
+        })
+      }
+    }
+
+    // 19b. Remove inline @font-face blocks with CDN src URLs (won't load offline)
+    if (result.features?.hasInlineCDNFontFace) {
+      var fontFaceRemoved = removeInlineCDNFontFace(refactoredHtml)
+      if (fontFaceRemoved.changed) {
+        refactoredHtml = fontFaceRemoved.html
+        appliedFixes.push({
+          id: 'remove-inline-cdn-fontface',
+          description: 'Removed inline @font-face blocks with CDN URLs (devices are offline)',
+          details: fontFaceRemoved.changes
+        })
+      }
+    }
+
+    // 20. Remove CSS custom properties / variables (not supported in Chrome 69)
+    var cssVarResult = convertCSSVariables(refactoredHtml)
+    if (cssVarResult.changed) {
+      refactoredHtml = cssVarResult.html
       appliedFixes.push({
-        id: 'remove-google-fonts',
-        description: 'Removed Google Fonts CDN links (devices are offline)',
-        details: fontsRemoved.changes
+        id: 'convert-css-variables',
+        description: 'Resolved CSS custom properties to literal values (Chrome 69 compatibility)',
+        details: cssVarResult.changes
       })
     }
-  }
 
-  // 19b. Remove inline @font-face blocks with CDN src URLs (won't load offline)
-  if (result.features?.hasInlineCDNFontFace) {
-    var fontFaceRemoved = removeInlineCDNFontFace(refactoredHtml)
-    if (fontFaceRemoved.changed) {
-      refactoredHtml = fontFaceRemoved.html
+    // 21. Remove known CDN script/link tags (devices are offline)
+    var cdnRemoved = removeKnownCDNTags(refactoredHtml)
+    if (cdnRemoved.changed) {
+      refactoredHtml = cdnRemoved.html
       appliedFixes.push({
-        id: 'remove-inline-cdn-fontface',
-        description: 'Removed inline @font-face blocks with CDN URLs (devices are offline)',
-        details: fontFaceRemoved.changes
+        id: 'remove-cdn-tags',
+        description: 'Removed CDN script/link tags (devices are offline)',
+        details: cdnRemoved.changes
       })
     }
-  }
-
-  // 20. Remove CSS custom properties / variables (not supported in Chrome 69)
-  var cssVarResult = convertCSSVariables(refactoredHtml)
-  if (cssVarResult.changed) {
-    refactoredHtml = cssVarResult.html
-    appliedFixes.push({
-      id: 'convert-css-variables',
-      description: 'Resolved CSS custom properties to literal values (Chrome 69 compatibility)',
-      details: cssVarResult.changes
-    })
-  }
-
-  // 21. Remove known CDN script/link tags (devices are offline)
-  var cdnRemoved = removeKnownCDNTags(refactoredHtml)
-  if (cdnRemoved.changed) {
-    refactoredHtml = cdnRemoved.html
-    appliedFixes.push({
-      id: 'remove-cdn-tags',
-      description: 'Removed CDN script/link tags (devices are offline)',
-      details: cdnRemoved.changes
-    })
   }
 
   // 22. Remove tracking pixels and impression tags (devices are offline, these cause errors)
