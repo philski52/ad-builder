@@ -121,7 +121,7 @@ export function buildContextFile(files, tasks, adMeta, importResult) {
   // ===== BUILD ENRICHED SECTIONS =====
 
   // --- Asset Inventory & Mapping (filter __MACOSX junk) ---
-  const assetInventory = buildAssetInventory(cleanAssets, importResult?.assets, sceneStructure)
+  const assetInventory = buildAssetInventory(cleanAssets, importResult?.assets, sceneStructure, adPlatform)
 
   // --- Click Zone / URL Mapping ---
   const clickMapping = buildClickMapping(detectedUrls, config, adMeta)
@@ -445,11 +445,10 @@ function buildFocusDeviceSpecs(width, height) {
   s += '```\n'
   s += '**Key rules:** This script goes inline before `</body>`. `getParameterByName` checks the URL for override values (used by the ad server), falling back to the hardcoded clickTag variables. All links use `window.open()` — no appHost, no openExternalLinkFull.\n\n'
 
-  s += '### Still Required\n'
-  s += '- **ES5 ONLY** — No const/let, arrow functions, template literals, etc.\n'
-  s += '- **No CDN scripts** — All scripts must be local files\n'
-  s += '- **GWD elements must be converted** to standard HTML\n'
-  s += '- **Enabler.js must be removed**\n\n'
+  s += '### What Focus Refactoring Does\n'
+  s += '- **Remove Enabler.js** and its initialization delay / DOMContentLoaded checks\n'
+  s += '- **Replace click handlers** with the getParameterByName pattern shown above\n'
+  s += '- **Leave everything else as-is** — GWD elements, CSS, animations, scrollbars, CDN scripts, ES6+, fonts all stay unchanged\n\n'
 
   s += '### Console Silencing (Required)\n'
   s += '```javascript\n'
@@ -649,10 +648,10 @@ function buildImportantNotes(adPlatform) {
     s += '- SVGs are hit-or-miss on Chrome 69/BrightSign. If an SVG doesn\'t render, convert it to PNG.\n'
     s += '- All fonts must be local (no Google Fonts CDN). Do NOT replace brand fonts with web-safe alternatives. Use `@font-face` with local font files, or if font files are unavailable, convert text elements to images.\n'
   } else if (adPlatform === 'focus') {
-    s += '- When modifying JavaScript, ensure ALL code is ES5 compliant.\n'
-    s += '- Click handlers use `window.open()` with `getParameterByName()` fallback — no appHost.\n'
-    s += '- Do NOT add appHost, ad.js, scroller.js, or ISI restructuring — Focus does not use these.\n'
-    s += '- Leave ISI scrollbars as-is — do not replace with standard scroller pattern.\n'
+    s += '- **Focus is minimal** — only remove Enabler.js delay and add Focus click handlers.\n'
+    s += '- Do NOT modify CSS, scrollbars, animations, GWD elements, fonts, or CDN scripts.\n'
+    s += '- Do NOT add appHost, ad.js, scroller.js, jQuery, autoScroll, or ISI restructuring.\n'
+    s += '- Click handlers use `window.open()` with `getParameterByName()` fallback.\n'
   } else if (adPlatform === 'ipro') {
     s += '- Test all changes against Chrome 69 compatibility.\n'
     s += '- When modifying JavaScript, ensure ALL code is ES5 compliant.\n'
@@ -667,7 +666,7 @@ function buildImportantNotes(adPlatform) {
 }
 
 // ===== HELPER: Asset Inventory =====
-function buildAssetInventory(allAssets, mappedAssets, sceneStructure) {
+function buildAssetInventory(allAssets, mappedAssets, sceneStructure, adPlatform) {
   if (!allAssets || allAssets.length === 0) return ''
 
   const assetUsage = sceneStructure?.assetUsage || {}
@@ -730,7 +729,7 @@ function buildAssetInventory(allAssets, mappedAssets, sceneStructure) {
   let section = `## Asset Inventory (${totalCount} total, ${mappedCount} auto-mapped, ${totalCount - mappedCount} unmapped)\n\n`
 
   if (svgCount > 0) {
-    section += `> **SVG Warning:** ${svgCount} SVG file(s) found. SVGs are hit-or-miss on Chrome 69/BrightSign. If any SVG fails to render, convert it to PNG.\n\n`
+    if (adPlatform !== 'focus') section += `> **SVG Warning:** ${svgCount} SVG file(s) found. SVGs are hit-or-miss on Chrome 69/BrightSign. If any SVG fails to render, convert it to PNG.\n\n`
   }
 
   const formatEntry = (entry) => {

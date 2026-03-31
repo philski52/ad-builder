@@ -3190,8 +3190,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     })
   }
 
-  // 8b. Convert window.open(clickTag) in inline <script> blocks
-  // Single-file ads often have window.open() in inline scripts, not in external JS files
+  // 8b. Convert window.open(clickTag) in inline <script> blocks (IXR/iPro only — Focus uses window.open natively)
+  if (isIxrOrIpro) {
   var inlineWindowOpenPattern = /<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/gi
   var inlineWindowOpenChanges = []
   refactoredHtml = refactoredHtml.replace(inlineWindowOpenPattern, function(fullMatch, scriptContent) {
@@ -3227,6 +3227,7 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
       details: inlineWindowOpenChanges
     })
   }
+  } // end isIxrOrIpro block for step 8b
 
   // 9. Add ISI scroller if ISI is detected (IXR/iPro only — Focus leaves scrollbars as-is)
   const hasISI = result.template?.features?.includes('isi') ||
