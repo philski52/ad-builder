@@ -22,6 +22,9 @@ const EFFECT_TYPES = [
   { value: 'y', label: 'Move Y (vertical)', step: 1 },
   { value: 'rotation', label: 'Rotate (degrees)', step: 1 },
   { value: 'scale', label: 'Scale', step: 0.1 },
+  { value: 'width', label: 'Width (px)', step: 1 },
+  { value: 'height', label: 'Height (px)', step: 1 },
+  { value: 'zIndex', label: 'Z-Index', step: 1 },
 ]
 
 // Preset animation patterns
@@ -119,6 +122,55 @@ const PRESETS = [
     effects: { autoAlpha: { from: 0, to: 1 } },
     easing: 'Power1.easeOut',
   },
+  // Click zone presets
+  {
+    id: 'clickzone-fade-in',
+    label: 'Fade In',
+    type: 'in',
+    forClickZone: true,
+    effects: { autoAlpha: { from: 0, to: 1 } },
+    easing: 'Power1.easeOut',
+  },
+  {
+    id: 'clickzone-fade-out',
+    label: 'Fade Out',
+    type: 'out',
+    forClickZone: true,
+    effects: { autoAlpha: { from: 1, to: 0 } },
+    easing: 'Power1.easeIn',
+  },
+  {
+    id: 'clickzone-grow',
+    label: 'Grow (scale up)',
+    type: 'in',
+    forClickZone: true,
+    effects: { scale: { from: 0.5, to: 1 }, autoAlpha: { from: 0, to: 1 } },
+    easing: 'Back.easeOut',
+  },
+  {
+    id: 'clickzone-shrink',
+    label: 'Shrink (scale down)',
+    type: 'out',
+    forClickZone: true,
+    effects: { scale: { from: 1, to: 0.5 }, autoAlpha: { from: 1, to: 0 } },
+    easing: 'Power1.easeIn',
+  },
+  {
+    id: 'clickzone-bring-front',
+    label: 'Bring to Front',
+    type: 'in',
+    forClickZone: true,
+    effects: { zIndex: { from: 10, to: 100 } },
+    easing: 'none',
+  },
+  {
+    id: 'clickzone-send-back',
+    label: 'Send to Back',
+    type: 'out',
+    forClickZone: true,
+    effects: { zIndex: { from: 100, to: 10 } },
+    easing: 'none',
+  },
 ]
 
 function AnimationEditor() {
@@ -144,14 +196,19 @@ function AnimationEditor() {
   const adWidth = config.dimensions.width
   const adHeight = config.dimensions.height
 
-  // Build target options: frames + ISI container
+  // Build target options: frames + ISI container + click zones
   const targetOptions = []
   for (let i = 0; i < frameCount; i++) {
-    targetOptions.push({ value: `frame${i + 1}`, label: `Frame ${i + 1}` })
+    targetOptions.push({ value: `frame${i + 1}`, label: `Frame ${i + 1}`, type: 'frame' })
   }
   if (hasISI) {
-    targetOptions.push({ value: 'outerMostDiv', label: 'ISI Container' })
+    targetOptions.push({ value: 'outerMostDiv', label: 'ISI Container', type: 'isi' })
   }
+  // Add click zones as animatable targets
+  const clickZones = config.clickZones || []
+  clickZones.forEach(zone => {
+    targetOptions.push({ value: zone.id, label: `Click: ${zone.id}`, type: 'clickzone' })
+  })
 
   // Sort animations by startTime for display
   const sortedAnimations = [...animations].sort((a, b) => a.startTime - b.startTime)
@@ -413,6 +470,35 @@ function AnimationEditor() {
                   {/* Also show generic fades for ISI */}
                   <div className="text-xs text-gray-400 mt-1 mb-0.5">General</div>
                   {PRESETS.filter(p => !p.forISI && (p.id === 'fade-in' || p.id === 'fade-out')).map(preset => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handleAddFromPreset(preset, showPresets)}
+                      className="w-full text-left px-2 py-1.5 text-sm hover:bg-primary-50 rounded transition-colors flex items-center gap-2"
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${preset.type === 'in' ? 'bg-green-500' : 'bg-red-500'}`} />
+                      {preset.label}
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {/* Click zone presets */}
+              {targetOptions.find(t => t.value === showPresets)?.type === 'clickzone' && (
+                <>
+                  <div className="text-xs text-gray-400 mt-1 mb-0.5">Click Zone Animations</div>
+                  {PRESETS.filter(p => p.forClickZone).map(preset => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handleAddFromPreset(preset, showPresets)}
+                      className="w-full text-left px-2 py-1.5 text-sm hover:bg-primary-50 rounded transition-colors flex items-center gap-2"
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${preset.type === 'in' ? 'bg-green-500' : 'bg-red-500'}`} />
+                      {preset.label}
+                    </button>
+                  ))}
+                  {/* Also show generic fades */}
+                  <div className="text-xs text-gray-400 mt-1 mb-0.5">General</div>
+                  {PRESETS.filter(p => !p.forISI && !p.forClickZone && (p.id === 'fade-in' || p.id === 'fade-out')).map(preset => (
                     <button
                       key={preset.id}
                       onClick={() => handleAddFromPreset(preset, showPresets)}

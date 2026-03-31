@@ -119,6 +119,20 @@ export const templates = [
     thumbnail: null
   },
 
+  // Background + Embedded Video Templates
+  {
+    id: 'int-bg-video-embedded',
+    name: 'INT Background + Video',
+    category: 'video',
+    brand: 'int',
+    description: 'Background image with embedded video player and play/pause toggle',
+    dimensions: { width: 1000, height: 1600 },
+    features: ['video', 'background'],
+    requiredAssets: ['background', 'video', 'thumbnail', 'playButton'],
+    configFields: ['videoTop', 'videoLeft', 'videoWidth', 'videoHeight', 'playBtnTop', 'playBtnLeft', 'playBtnWidth'],
+    thumbnail: null
+  },
+
   // Video Templates
   {
     id: 'int-mod-video-0-buttons',

@@ -24,9 +24,9 @@ function CodeView() {
     { id: 'html', label: 'index.html', content: generatedCode.html },
     { id: 'js', label: 'ad.js', content: generatedCode.js },
     { id: 'css', label: 'main.css', content: generatedCode.css },
+    { id: 'scrollerJs', label: 'scroller.js', content: generatedCode.scrollerJs },
     ...(hasISI ? [
-      { id: 'scrollerCss', label: 'scroller.css', content: generatedCode.scrollerCss },
-      { id: 'mainJs', label: 'main.js', content: generatedCode.mainJs }
+      { id: 'scrollerCss', label: 'scroller.css', content: generatedCode.scrollerCss }
     ] : []),
     ...(hasButtons ? [
       { id: 'buttonsCss', label: 'buttons.css', content: generatedCode.buttonsCss }

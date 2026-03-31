@@ -14,6 +14,7 @@ function ClickZonesEditor() {
   const updateConfig = useProjectStore((state) => state.updateConfig)
 
   const hasISI = hasFeature(currentTemplate, 'isi')
+  const hasVideo = hasFeature(currentTemplate, 'video')
   const zones = config.clickZones || []
 
   const presetZones = [
@@ -215,6 +216,19 @@ function ClickZonesEditor() {
                   />
                   <span>In ISI</span>
                   <span className="text-xs text-gray-500">(scrolls with ISI content)</span>
+                </label>
+              )}
+
+              {hasVideo && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={zone.pauseVideo || false}
+                    onChange={(e) => updateZone(index, 'pauseVideo', e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <span>Pause Video</span>
+                  <span className="text-xs text-gray-500">(pauses video when clicked)</span>
                 </label>
               )}
 

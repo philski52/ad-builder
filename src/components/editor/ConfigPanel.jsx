@@ -8,12 +8,13 @@ function ConfigPanel() {
 
   if (!currentTemplate) return null;
 
-  const hasISI = hasFeature(currentTemplate, 'isi');
-  const hasVideo = hasFeature(currentTemplate, 'video');
-  const hasButtons = hasFeature(currentTemplate, 'buttons');
-  const hasExpandable = hasFeature(currentTemplate, 'expandable');
-  const hasAnimation = hasFeature(currentTemplate, 'animation');
-  const maxButtonCount = currentTemplate.id === 'int-mod-video-1-2-buttons' ? 2 : 4;
+  const hasISI = hasFeature(currentTemplate, 'isi')
+  const hasVideo = hasFeature(currentTemplate, 'video')
+  const hasBackground = hasFeature(currentTemplate, 'background')
+  const hasExpandable = hasFeature(currentTemplate, 'expandable')
+  const hasAnimation = hasFeature(currentTemplate, 'animation')
+  const hasButtons = hasFeature(currentTemplate, 'buttons')
+  const maxButtonCount = (currentTemplate.configFields || []).filter(f => f.startsWith('clickTag')).length
 
   return (
     <div className="p-4 space-y-6">
@@ -176,6 +177,47 @@ function ConfigPanel() {
         </div>
       )}
 
+      {/* ISI Image (ISI_guts) Settings */}
+      {hasISI && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-gray-700 border-b pb-2">ISI Image (ISI_guts)</h3>
+          <p className="text-xs text-gray-500">Controls the position and width of the ISI content image inside the container.</p>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Width</label>
+              <input
+                type="number"
+                value={config.isiImageWidth || config.isiWidth || config.dimensions.width}
+                onChange={(e) => updateConfig('isiImageWidth', parseInt(e.target.value) || config.dimensions.width)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Left</label>
+              <input
+                type="number"
+                value={config.isiImageLeft || 0}
+                onChange={(e) => updateConfig('isiImageLeft', parseInt(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Top</label>
+              <input
+                type="number"
+                value={config.isiImageTop || 0}
+                onChange={(e) => updateConfig('isiImageTop', parseInt(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400">Position and size of the scrollable ISI image (in pixels)</p>
+        </div>
+      )}
+
       {/* ISI Scroller Settings */}
       {hasISI && (
         <div className="space-y-4">
@@ -222,53 +264,21 @@ function ConfigPanel() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Scroller Color
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="color"
-                  value={config.scrollerColor || '#798280'}
-                  onChange={(e) =>
-                    updateConfig('scrollerColor', e.target.value)
-                  }
-                  className="w-10 h-9 rounded border border-gray-300 cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={config.scrollerColor || '#798280'}
-                  onChange={(e) =>
-                    updateConfig('scrollerColor', e.target.value)
-                  }
-                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">
-                Track Color
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="color"
-                  value={config.scrollerTrackColor || '#b8bebc'}
-                  onChange={(e) =>
-                    updateConfig('scrollerTrackColor', e.target.value)
-                  }
-                  className="w-10 h-9 rounded border border-gray-300 cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={config.scrollerTrackColor || '#b8bebc'}
-                  onChange={(e) =>
-                    updateConfig('scrollerTrackColor', e.target.value)
-                  }
-                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Scroller Color</label>
+            <div className="flex gap-2">
+              <input
+                type="color"
+                value={config.scrollerColor || '#798280'}
+                onChange={(e) => updateConfig('scrollerColor', e.target.value)}
+                className="w-10 h-9 rounded border border-gray-300 cursor-pointer"
+              />
+              <input
+                type="text"
+                value={config.scrollerColor || '#798280'}
+                onChange={(e) => updateConfig('scrollerColor', e.target.value)}
+                className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
+              />
             </div>
           </div>
 
@@ -316,6 +326,67 @@ function ConfigPanel() {
                 min="0"
                 max="50"
               />
+            </div>
+          </div>
+
+          {/* Scroller Track (isiLineNoArrows) Settings */}
+          <div className="border-t pt-4 mt-4">
+            <h4 className="text-sm font-medium text-gray-600 mb-3">Scroller Track</h4>
+            <p className="text-xs text-gray-500 mb-3">The background track that the scroller moves along.</p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Track Width</label>
+                <input
+                  type="number"
+                  value={config.scrollerTrackWidth || 12}
+                  onChange={(e) => updateConfig('scrollerTrackWidth', parseInt(e.target.value) || 12)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  min="6"
+                  max="30"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Track Right Position</label>
+                <input
+                  type="number"
+                  value={config.scrollerTrackRight || 0}
+                  onChange={(e) => updateConfig('scrollerTrackRight', parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1">pixels from right edge</p>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Track Border Radius</label>
+                <input
+                  type="number"
+                  value={config.scrollerTrackBorderRadius || 50}
+                  onChange={(e) => updateConfig('scrollerTrackBorderRadius', parseInt(e.target.value) || 50)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  min="0"
+                  max="50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Track Color</label>
+                <div className="flex gap-2">
+                  <input
+                    type="color"
+                    value={config.scrollerTrackColor || '#b8bebc'}
+                    onChange={(e) => updateConfig('scrollerTrackColor', e.target.value)}
+                    className="w-10 h-9 rounded border border-gray-300 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={config.scrollerTrackColor || '#b8bebc'}
+                    onChange={(e) => updateConfig('scrollerTrackColor', e.target.value)}
+                    className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -371,8 +442,99 @@ function ConfigPanel() {
         </div>
       )}
 
+      {/* Video Position (bg-video-embedded) */}
+      {hasVideo && hasBackground && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-gray-700 border-b pb-2">Video Position & Size</h3>
+          <p className="text-xs text-gray-500">Position the video container on the background image.</p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Top</label>
+              <input
+                type="number"
+                value={config.videoTop ?? 134}
+                onChange={(e) => updateConfig('videoTop', parseInt(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Left</label>
+              <input
+                type="number"
+                value={config.videoLeft ?? 65}
+                onChange={(e) => updateConfig('videoLeft', parseInt(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Width</label>
+              <input
+                type="number"
+                value={config.videoWidth ?? 876}
+                onChange={(e) => updateConfig('videoWidth', parseInt(e.target.value) || 876)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Height</label>
+              <input
+                type="number"
+                value={config.videoHeight ?? 492}
+                onChange={(e) => updateConfig('videoHeight', parseInt(e.target.value) || 492)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <h3 className="text-sm font-medium text-gray-700 border-b pb-2 mt-4">Play Button Position</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Top</label>
+              <input
+                type="number"
+                value={config.playBtnTop ?? 432}
+                onChange={(e) => updateConfig('playBtnTop', parseInt(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Left</label>
+              <input
+                type="number"
+                value={config.playBtnLeft ?? 417}
+                onChange={(e) => updateConfig('playBtnLeft', parseInt(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Width</label>
+              <input
+                type="number"
+                value={config.playBtnWidth ?? 150}
+                onChange={(e) => updateConfig('playBtnWidth', parseInt(e.target.value) || 150)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="showVideoControls"
+              checked={config.showVideoControls}
+              onChange={(e) => updateConfig('showVideoControls', e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="showVideoControls" className="text-sm text-gray-600">
+              Show video controls
+            </label>
+          </div>
+        </div>
+      )}
+
       {/* Video Settings */}
-      {hasVideo && (
+      {hasVideo && !hasBackground && (
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-gray-700 border-b pb-2">
             Video Settings

@@ -5,6 +5,7 @@ import AssetManager from '../editor/AssetManager'
 import ConfigPanel from '../editor/ConfigPanel'
 import ClickZonesEditor from '../editor/ClickZonesEditor'
 import ISIEditor from '../editor/ISIEditor'
+import ExpandableISIEditor from '../editor/ExpandableISIEditor'
 import AnimationEditor from '../editor/AnimationEditor'
 import CodeView from '../editor/CodeView'
 import PreviewIframe from '../preview/PreviewIframe'
@@ -26,6 +27,8 @@ function MainLayout() {
         return <ClickZonesEditor />
       case 'isi':
         return <ISIEditor />
+      case 'expandable':
+        return <ExpandableISIEditor />
       case 'animation':
         return <AnimationEditor />
       case 'code':

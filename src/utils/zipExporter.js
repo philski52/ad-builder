@@ -2,7 +2,7 @@
 // Creates downloadable ad package
 
 import JSZip from 'jszip'
-import { generateTemplateCode, generateMainJS } from './templateGenerator'
+import { generateTemplateCode, generateScrollerJS } from './templateGenerator'
 import { hasFeature } from '../templates'
 
 // Controls assets (loaded at build time via Vite)
@@ -57,12 +57,28 @@ export async function exportAdZip(template, config, assets, projectName, animati
     cssFolder.file('clicks.css', code.clicksCss)
   }
 
+  if (code.expandableCss) {
+    cssFolder.file('expandable.css', code.expandableCss)
+  }
+
+  if (code.bgVideoCss) {
+    cssFolder.file('bg-video.css', code.bgVideoCss)
+  }
+
   // Add script folder
   const scriptFolder = zip.folder('script')
   scriptFolder.file('ad.js', code.js)
 
-  if (code.mainJs) {
-    scriptFolder.file('main.js', code.mainJs)
+  if (code.scrollerJs) {
+    scriptFolder.file('scroller.js', code.scrollerJs)
+  }
+
+  if (code.expandCollapseJs) {
+    scriptFolder.file('expandCollapse.js', code.expandCollapseJs)
+  }
+
+  if (code.bgVideoJs) {
+    scriptFolder.file('bg-video.js', code.bgVideoJs)
   }
 
   // Add assets folder
@@ -94,6 +110,30 @@ export async function exportAdZip(template, config, assets, projectName, animati
   if (assets.video?.dataUrl) {
     const blob = dataUrlToBlob(assets.video.dataUrl)
     assetsFolder.file('video.mp4', blob)
+  }
+
+  // Add video thumbnail
+  if (assets.thumbnail?.dataUrl) {
+    const blob = dataUrlToBlob(assets.thumbnail.dataUrl)
+    assetsFolder.file('thumbnail.png', blob)
+  }
+
+  // Add play button
+  if (assets.playButton?.dataUrl) {
+    const blob = dataUrlToBlob(assets.playButton.dataUrl)
+    assetsFolder.file('play-button.png', blob)
+  }
+
+  // Add expand button image
+  if (assets.expandButtonImage?.dataUrl) {
+    const blob = dataUrlToBlob(assets.expandButtonImage.dataUrl)
+    assetsFolder.file('expand-button.png', blob)
+  }
+
+  // Add collapse button image
+  if (assets.collapseButtonImage?.dataUrl) {
+    const blob = dataUrlToBlob(assets.collapseButtonImage.dataUrl)
+    assetsFolder.file('collapse-button.png', blob)
   }
 
   // Add controls folder for video templates

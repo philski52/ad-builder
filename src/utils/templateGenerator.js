@@ -13,19 +13,28 @@ export function generateTemplateCode(
   animations = [],
 ) {
   const hasISI = hasFeature(template, 'isi');
+  const hasExpandable = hasFeature(template, 'expandable') && config.expandableEnabled
   const hasVideo = hasFeature(template, 'video');
-  const hasButtons = hasVideo && hasFeature(template, 'buttons') && config.buttonCount > 0;
+  const hasBackground = hasFeature(template, 'background')
+  const hasBgVideo = hasVideo && hasBackground
+  const hasButtons = hasVideo && !hasBgVideo && hasFeature(template, 'buttons') && config.buttonCount > 0;
   const hasClickZones = (config.clickZones || []).length > 0;
 
   const result = {
     html: generateHTML(template, config, assets, animations),
     js: generateAdJS(config),
-    css: generateCSS(config),
+    css: generateCSS(config, hasButtons),
   };
 
   if (hasISI) {
-    result.scrollerCss = generateScrollerCSS(config);
-    result.mainJs = generateMainJS(config);
+    result.scrollerCss = generateScrollerCSS(config)
+  }
+  // Always include scroller.js — 95% of ads need it, avoids conflicts with imported main.js
+  result.scrollerJs = generateScrollerJS(config)
+
+  if (hasExpandable) {
+    result.expandableCss = generateExpandableCSS(config)
+    result.expandCollapseJs = generateExpandCollapseJS(config)
   }
 
   if (hasButtons) {
@@ -33,7 +42,12 @@ export function generateTemplateCode(
   }
 
   if (hasClickZones) {
-    result.clicksCss = generateClicksCSS(config);
+    result.clicksCss = generateClicksCSS(config)
+  }
+
+  if (hasBgVideo) {
+    result.bgVideoCss = generateBgVideoCSS(config)
+    result.bgVideoJs = generateBgVideoJS(config)
   }
 
   return result;
@@ -84,8 +98,20 @@ function generateAnimationJS(animations) {
       initProps.rotation = anim.effects.rotation.from;
     }
     if (anim.effects.scale !== undefined) {
-      props.scale = anim.effects.scale.to;
-      initProps.scale = anim.effects.scale.from;
+      props.scale = anim.effects.scale.to
+      initProps.scale = anim.effects.scale.from
+    }
+    if (anim.effects.width !== undefined) {
+      props.width = anim.effects.width.to
+      initProps.width = anim.effects.width.from
+    }
+    if (anim.effects.height !== undefined) {
+      props.height = anim.effects.height.to
+      initProps.height = anim.effects.height.from
+    }
+    if (anim.effects.zIndex !== undefined) {
+      props.zIndex = anim.effects.zIndex.to
+      initProps.zIndex = anim.effects.zIndex.from
     }
     if (anim.easing && anim.easing !== 'none') {
       props.ease = anim.easing;
@@ -134,10 +160,13 @@ window.addEventListener('message', function(e) {
  */
 export function generateHTML(template, config, assets, animations) {
   const hasISI = hasFeature(template, 'isi');
+  const hasExpandable = hasFeature(template, 'expandable') && config.expandableEnabled
   const hasAnimation = hasFeature(template, 'animation');
   const hasVideo = hasFeature(template, 'video');
   const hasButtons = hasFeature(template, 'buttons');
-  const buttonCount = config.buttonCount || 0;
+  const hasBackground = hasFeature(template, 'background')
+  const hasBgVideo = hasVideo && hasBackground
+  const buttonCount = hasBgVideo ? 0 : (config.buttonCount || 0)
   const clickZones = config.clickZones || [];
   const anims = animations || [];
 
@@ -167,7 +196,7 @@ export function generateHTML(template, config, assets, animations) {
   // Generate click zone HTML - non-ISI zones (go in container)
   const containerZonesHTML = clickZones
     .filter((z) => !z.inISI)
-    .map((z) => `<div id="${z.id}" class="click-zone"${hasVideo ? ' onclick="pauseVid();"' : ''}></div>`)
+    .map((z) => `<div id="${z.id}" class="click-zone"${hasVideo && z.pauseVideo ? ' onclick="pauseVid();"' : ''}></div>`)
     .join('\n        ');
 
   // Generate click zone HTML - ISI zones (go in innerMostDiv)
@@ -177,6 +206,23 @@ export function generateHTML(template, config, assets, animations) {
     .join('\n                ');
 
   const hasClickZones = clickZones.length > 0;
+
+  // Generate expandable ISI HTML
+  let expandableHTML = ''
+  if (hasExpandable) {
+    const expandContent = config.expandButtonMode === 'image'
+      ? `<img src="assets/expand-button.png" width="${config.expandButtonWidth}" height="${config.expandButtonHeight}">`
+      : `<h1>${config.expandButtonText || 'CLICK HERE TO EXPAND SAFETY INFORMATION'}</h1>`
+    const collapseContent = config.collapseButtonMode === 'image'
+      ? `<img src="assets/collapse-button.png" width="${config.collapseButtonWidth}" height="${config.collapseButtonHeight}">`
+      : `<h1>${config.collapseButtonText || 'CLICK HERE TO COLLAPSE SAFETY INFORMATION'}</h1>`
+
+    expandableHTML = `
+        <div id="expandable">
+            <div id="expand">${expandContent}</div>
+            <div id="collapse">${collapseContent}</div>
+        </div>`
+  }
 
   // Generate animation JS
   const animationScript = generateAnimationJS(anims);
@@ -188,8 +234,8 @@ export function generateHTML(template, config, assets, animations) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <meta name="ad.size" content="width=${config.dimensions.width},height=${config.dimensions.height}">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <title>Ad</title>
-    <script>var appHost = null; try { appHost = window.appHost = window.top.AppHost ? new window.top.AppHost(this) : undefined; } catch(e) { window.appHost = null; }<\/script>
+    <title></title>
+    <script>  var appHost = window.appHost = new window.top.AppHost(this);<\/script>
     <script src="https://code.jquery.com/jquery-2.1.4.min.js"><\/script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/2.0.1/TweenMax.min.js"><\/script>
     <link rel="stylesheet" href="css/main.css">
@@ -197,19 +243,28 @@ export function generateHTML(template, config, assets, animations) {
     ${hasClickZones ? `<link rel="stylesheet" href="css/clicks.css">` : ''}
     ${hasVideo && buttonCount > 0 ? `<link rel="stylesheet" href="css/buttons.css">` : ''}
     ${hasVideo && config.showVideoControls ? `<link rel="stylesheet" href="controls/ixr-7-controls.css">` : ''}
+    ${hasExpandable ? `<link rel="stylesheet" href="css/expandable.css">` : ''}
+    ${hasBgVideo ? `<link rel="stylesheet" href="css/bg-video.css">` : ''}
 </head>
 <body>
     <div id="container">
-        ${!hasVideo ? `<img class="background" src="assets/background.png" width="${config.dimensions.width}px">` : ''}
+        ${!hasVideo || hasBgVideo ? `<img class="background" src="assets/background.png" width="${config.dimensions.width}px">` : ''}
+        ${hasBgVideo ? `<img id="video_pause_btn" src="${assets.playButton?.dataUrl || 'assets/play-button.png'}" onclick="showVid();" />
+        <div id="video-container">
+            <video id="videoId" poster="assets/thumbnail.png">
+                <source src="assets/video.mp4" type="video/mp4">
+            </video>
+        </div>` : ''}
         ${framesHTML}
         ${containerZonesHTML}
+        ${expandableHTML}
         ${
           hasISI
             ? `
         <div id="outerMostDiv">
             <div id="innerMostDiv">
                 <div id="isi-content-wrapper">
-                    <img id="ISI_guts" src="assets/isi.png" width="${config.isiWidth || config.dimensions.width}px">
+                    <img id="ISI_guts" src="assets/isi.png" width="${config.isiImageWidth || config.isiWidth || config.dimensions.width}px">
                     ${isiZonesHTML}
                 </div>
             </div>
@@ -217,14 +272,17 @@ export function generateHTML(template, config, assets, animations) {
         </div>`
             : ''
         }
-        ${hasVideo ? `<video id="videoId" autoplay width="100%" height="${config.videoHeight}" style="position:relative;${assets.video?.dataUrl ? '' : 'border-bottom:1px solid #808080;'}"><source src="${assets.video?.dataUrl ? 'assets/video.mp4' : ''}" type="video/mp4" /></video>` : ''}
+        ${hasVideo && !hasBgVideo ? `<video id="videoId" autoplay width="100%" height="${config.videoHeight}" style="position:relative;${assets.video?.dataUrl ? '' : 'border-bottom:1px solid #808080;'}"><source src="${assets.video?.dataUrl ? 'assets/video.mp4' : ''}" type="video/mp4" /></video>` : ''}
         ${hasButtons && buttonCount > 0 ? `<div class="buttons">
           ${buttonsHTML}
         </div>` : ''}
     </div>
+    ${hasBgVideo ? `<script src="script/bg-video.js"><\/script>` : ''}
     <script src="script/ad.js"><\/script>
     ${hasVideo && config.showVideoControls ? `<script src="controls/controls.js"><\/script>` : ''}
-    ${hasISI ? `<script src="script/main.js"><\/script>` : ''}
+    ${hasISI ? `<script src="script/scroller.js"><\/script>` : `<!-- <script src="script/scroller.js"><\/script> -->`}
+    ${hasExpandable ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"><\/script>
+    <script src="script/expandCollapse.js"><\/script>` : ''}
     ${animationScript ? `<script>${animationScript}<\/script>` : ''}
     ${hasVideo && hasButtons ? `
         <script>
@@ -274,6 +332,11 @@ export function generateAdJS(config) {
         handlerFn = `openMod("${jobId}");`;
       }
 
+    // Add pauseVideo call before the link action if enabled
+    if (zone.pauseVideo) {
+      handlerFn = `pauseVid(); ${handlerFn}`
+    }
+
       return `        //${comment}
         var _el_${varName} = $('#${zone.id}')[0];
         if (_el_${varName}) _el_${varName}.addEventListener("click", function (e) {
@@ -285,11 +348,11 @@ export function generateAdJS(config) {
   return `$(document).ready(function () {
 
     //External Link
-    function openExternalLinkFull(e, clickTag) {
+    function openExternalLinkFull(e, linkUrl) {
         if (typeof appHost !== 'undefined') {
-            appHost.openExternalLinkFull(clickTag);
+            appHost.requestFullscreenBrowserView(linkUrl);
         } else {
-            window.open(clickTag);
+            window.open(linkUrl);
         }
     }
 
@@ -304,7 +367,7 @@ export function generateAdJS(config) {
 
     //MODAL-INT Open
     function openMod(jobId) {
-        if (typeof appHost !== 'undefined') {
+        if (typeof appHost !== 'undefined' && appHost) {
             appHost.requestModalAdView("mod/index.html");
         } else {
             window.open("https://patientpointdemo.com/banner_review/IADS-" + jobId + "/index.html");
@@ -326,11 +389,12 @@ ${clickHandlers}
 /**
  * Generate main.css
  */
-export function generateCSS(config) {
+export function generateCSS(config, hasButtons = false) {
   return `* { margin: 0; padding: 0; box-sizing: border-box; }
+body { margin: 0; padding: 0; }
 #container { position: absolute; width: ${config.dimensions.width}px; height: ${config.dimensions.height}px; overflow: hidden; background: white;}
 .background { position: absolute; top: 0; left: 0; }
-#clickTag1 { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: pointer; }
+#clickTag1 { position: absolute; top: 0; left: 0; width: ${hasButtons ? '200px' : '100%'}; height: ${hasButtons ? '50px' : '100%'}; cursor: pointer; }
 [id^="frame"] { position: absolute; top: 0; left: 0; visibility: hidden; opacity: 0; }
 #outerMostDiv { position: absolute; bottom: 0; left: 0; width: 100%; height: 540px; background: white; overflow: hidden; }
 #innerMostDiv { position: absolute; width: 100%; overflow-y: auto; }`;
@@ -340,17 +404,23 @@ export function generateCSS(config) {
  * Generate scroller.css for ISI templates
  */
 export function generateScrollerCSS(config) {
-  const isiHeight = config.isiHeight || 540;
-  const isiTop = config.isiTop || config.dimensions.height - isiHeight;
-  const isiWidth = config.isiWidth || config.dimensions.width;
-  const isiLeft = config.isiLeft || 0;
-  const isiBackgroundColor = config.isiBackgroundColor || '#ffffff';
-  const scrollerColor = config.scrollerColor || '#798280';
-  const scrollerWidth = config.scrollerWidth || 12;
-  const scrollerHeight = config.scrollerHeight || 35;
-  const scrollerBorderRadius = config.scrollerBorderRadius || 50;
-  const scrollerTrackColor = config.scrollerTrackColor || '#b8bebc';
-  const scrollerTrackWidth = config.scrollerTrackWidth || 12;
+  // If expandable is enabled, use collapsed state values for initial ISI position
+  const isExpandable = config.expandableEnabled
+  const isiHeight = isExpandable ? (config.expandableCollapsedHeight || 450) : (config.isiHeight || 540)
+  const isiTop = isExpandable ? (config.expandableCollapsedTop || 1100) : (config.isiTop || (config.dimensions.height - isiHeight))
+  const isiWidth = config.isiWidth || config.dimensions.width
+  const isiLeft = config.isiLeft || 0
+  const isiBackgroundColor = config.isiBackgroundColor || '#ffffff'
+  const scrollerColor = config.scrollerColor || '#798280'
+  const scrollerWidth = config.scrollerWidth || 12
+  const scrollerHeight = config.scrollerHeight || 35
+  const scrollerBorderRadius = config.scrollerBorderRadius || 50
+  const scrollerTrackColor = config.scrollerTrackColor || '#b8bebc'
+  const scrollerTrackWidth = config.scrollerTrackWidth || 12
+  const scrollerTrackRight = config.scrollerTrackRight || 0
+  const scrollerTrackBorderRadius = config.scrollerTrackBorderRadius !== undefined ? config.scrollerTrackBorderRadius : 50
+  const isiImageLeft = config.isiImageLeft || 0
+  const isiImageTop = config.isiImageTop || 0
 
   return `/* Scroller CSS for ISI */
 #outerMostDiv {
@@ -374,6 +444,12 @@ export function generateScrollerCSS(config) {
 
 #isi-content-wrapper {
     position: relative;
+}
+
+#ISI_guts {
+    position: relative;
+    left: ${isiImageLeft}px;
+    top: ${isiImageTop}px;
 }
 
 .scroller {
@@ -407,9 +483,9 @@ export function generateScrollerCSS(config) {
 
 .isiLineNoArrows {
     background: ${scrollerTrackColor};
-    border-radius: ${scrollerBorderRadius}px;
+    border-radius: ${scrollerTrackBorderRadius}px;
     top: 0px;
-    right: 0px;
+    right: ${scrollerTrackRight}px;
     height: 100%;
     width: ${scrollerTrackWidth}px;
     cursor: pointer;
@@ -482,7 +558,7 @@ export function generateClicksCSS(config) {
 .click-zone {
     position: absolute;
     cursor: pointer;
-    z-index: 10;
+    z-index: 9999;
 }
 
 `;
@@ -501,11 +577,11 @@ export function generateClicksCSS(config) {
 }
 
 /**
- * Generate main.js for ISI scroller functionality
+ * Generate scroller.js for ISI scroller functionality
  */
-export function generateMainJS(config) {
-  const scrollStep = config.scrollStep || 5;
-  const autoScrollSpeed = config.autoScrollSpeed || 80;
+export function generateScrollerJS(config) {
+  const scrollStep = config.scrollStep || 5
+  const autoScrollSpeed = config.autoScrollSpeed || 80
   return `var _loadedImages = 0,
     _tl = new TimelineMax({delay: 0}),
     _isiText = document.getElementById('innerMostDiv'),
@@ -638,5 +714,229 @@ function clearIntervalFunct() {
 
 $(document).ready(function() {
     init2();
-});`;
+});`
+}
+
+/**
+ * Generate expandable.css for expandable ISI templates
+ */
+export function generateExpandableCSS(config) {
+  const expandButtonMode = config.expandButtonMode || 'text'
+  const collapseButtonMode = config.collapseButtonMode || 'text'
+
+  // Expand button styles
+  const expandTop = config.expandButtonTop || 1040
+  const expandLeft = config.expandButtonLeft || 0
+  const expandWidth = config.expandButtonWidth || 1080
+  const expandHeight = config.expandButtonHeight || 41
+  const expandBgColor = config.expandButtonBgColor || '#532f87'
+  const expandTextColor = config.expandButtonTextColor || '#ffffff'
+  const expandFontSize = config.expandButtonFontSize || 16
+  const expandBorderRadius = config.expandButtonBorderRadius || 50
+
+  // Collapse button styles
+  const collapseTop = config.collapseButtonTop || 0
+  const collapseLeft = config.collapseButtonLeft || 0
+  const collapseWidth = config.collapseButtonWidth || 1080
+  const collapseHeight = config.collapseButtonHeight || 41
+  const collapseBgColor = config.collapseButtonBgColor || '#532f87'
+  const collapseTextColor = config.collapseButtonTextColor || '#ffffff'
+  const collapseFontSize = config.collapseButtonFontSize || 16
+  const collapseBorderRadius = config.collapseButtonBorderRadius || 50
+
+  // Different styles for text vs image mode
+  const expandBgStyle = expandButtonMode === 'text' ? `background-color: ${expandBgColor};` : 'background: transparent;'
+  const collapseBgStyle = collapseButtonMode === 'text' ? `background-color: ${collapseBgColor};` : 'background: transparent;'
+
+  return `/* Expandable ISI CSS */
+#expandable {
+    position: absolute;
+    z-index: 998;
+}
+
+#expand {
+    position: absolute;
+    top: ${expandTop}px;
+    left: ${expandLeft}px;
+    width: ${expandWidth}px;
+    height: ${expandHeight}px;
+    ${expandBgStyle}
+    border-radius: ${expandBorderRadius}px;
+    text-align: center;
+    opacity: 1;
+    z-index: 999;
+    justify-content: center;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+#expand h1 {
+    color: ${expandTextColor};
+    font-size: ${expandFontSize}px;
+    font-family: Arial, sans-serif;
+    font-weight: normal;
+    margin: 0;
+    width: 100%;
+}
+
+#expand img {
+    position: static;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+#collapse {
+    position: absolute;
+    top: ${collapseTop}px;
+    left: ${collapseLeft}px;
+    width: ${collapseWidth}px;
+    height: ${collapseHeight}px;
+    ${collapseBgStyle}
+    border-radius: ${collapseBorderRadius}px;
+    text-align: center;
+    opacity: 0;
+    z-index: 999;
+    justify-content: center;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+#collapse h1 {
+    color: ${collapseTextColor};
+    font-size: ${collapseFontSize}px;
+    font-family: Arial, sans-serif;
+    font-weight: normal;
+    margin: 0;
+    width: 100%;
+}
+
+#collapse img {
+    position: static;
+    max-width: 100%;
+    max-height: 100%;
+}`
+}
+
+/**
+ * Generate expandCollapse.js for expandable ISI templates
+ */
+export function generateExpandCollapseJS(config) {
+  // Collapsed state (initial)
+  const collapsedHeight = config.expandableCollapsedHeight || 450
+  const collapsedTop = config.expandableCollapsedTop || 1100
+
+  // Expanded state
+  const expandedHeight = config.expandableExpandedHeight || 1742
+  const expandedTop = config.expandableExpandedTop || 42
+  const controlsHeightPercent = config.expandableControlsHeightPercent || 84
+
+  // Animation duration
+  const duration = config.expandableDuration || 1
+
+  return `var expandTL = gsap.timeline({
+    reversed: true
+});
+
+// Animate ISI container from collapsed to expanded state
+expandTL.to(document.getElementById('outerMostDiv'), {
+    height: '${expandedHeight}',
+    top: '${expandedTop}',
+    duration: ${duration}
+}, 0);
+
+// Animate collapse button to visible
+expandTL.to(document.getElementById("collapse"), {
+    top: '0',
+    opacity: 1,
+    duration: ${duration}
+}, 0);
+
+// Animate expand button to hidden
+expandTL.to(document.getElementById("expand"), {
+    opacity: 0,
+    duration: ${duration}
+}, 0);
+
+// Animate ISI controls height
+expandTL.to(document.getElementById("isi-controls"), {
+    height: '${controlsHeightPercent}%',
+    duration: ${duration}
+}, 0);
+
+// Click handlers
+$("#expand")[0].addEventListener('click', function () {
+    expandTL.play();
+});
+
+$("#collapse")[0].addEventListener('click', function () {
+    expandTL.reverse();
+});`
+}
+
+/**
+ * Generate bg-video.css for background + embedded video templates
+ */
+export function generateBgVideoCSS(config) {
+  const videoTop = config.videoTop ?? 134
+  const videoLeft = config.videoLeft ?? 65
+  const videoWidth = config.videoWidth ?? 876
+  const videoHeight = config.videoHeight ?? 492
+  const playBtnTop = config.playBtnTop ?? 432
+  const playBtnLeft = config.playBtnLeft ?? 417
+  const playBtnWidth = config.playBtnWidth ?? 150
+
+  return `/* Background + Embedded Video Styles */
+div, img {
+    position: absolute;
+}
+
+.background {
+    z-index: 1;
+}
+
+#video-container {
+    top: ${videoTop}px;
+    left: ${videoLeft}px;
+    width: ${videoWidth}px;
+    height: ${videoHeight}px;
+    z-index: 999;
+}
+
+#videoId {
+    top: 0;
+    left: 0;
+    width: ${videoWidth}px;
+    height: ${videoHeight}px;
+}
+
+#video_pause_btn {
+    top: ${playBtnTop}px;
+    left: ${playBtnLeft}px;
+    width: ${playBtnWidth}px;
+    z-index: 9999;
+    cursor: pointer;
+}`
+}
+
+/**
+ * Generate bg-video.js for background + embedded video play/pause toggle
+ */
+export function generateBgVideoJS(config) {
+  return `var vid = document.getElementById("videoId");
+
+function pauseVid() {
+    vid.pause();
+    vid.style.display = "none";
+    document.getElementById("video_pause_btn").style.display = "block";
+    document.getElementById("video_pause_btn").style.zIndex = "9999";
+}
+
+function showVid() {
+    document.getElementById("video_pause_btn").style.display = "none";
+    document.getElementById("video_pause_btn").style.zIndex = "-1";
+    vid.style.display = "block";
+    vid.play();
+}`
 }
