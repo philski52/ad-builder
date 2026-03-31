@@ -121,37 +121,40 @@ export function buildContextFile(files, tasks, adMeta, importResult) {
   // ===== BUILD ENRICHED SECTIONS =====
 
   // --- Asset Inventory & Mapping (filter __MACOSX junk) ---
-  const assetInventory = buildAssetInventory(cleanAssets, importResult?.assets, sceneStructure)
+  const assetInventory = buildAssetInventory(cleanAssets, importResult?.assets, sceneStructure, adPlatform)
 
   // --- Click Zone / URL Mapping ---
   const clickMapping = buildClickMapping(detectedUrls, config, adMeta)
 
-  // --- Animation Context ---
-  const animationContext = buildAnimationContext(animAnalysis, sceneStructure, features, config)
+  // Focus ads get minimal CLAUDE.md — skip IXR-specific sections
+  const isFocusPlatform = adPlatform === 'focus'
 
-  // --- Feature Detection Summary ---
-  const featureSummary = buildFeatureSummary(features)
+  // --- Animation Context (IXR/iPro only) ---
+  const animationContext = isFocusPlatform ? '' : buildAnimationContext(animAnalysis, sceneStructure, features, config)
 
-  // --- Detected Issues (not just applied fixes, but ALL issues found) ---
-  const issuesList = buildIssuesList(fixes)
+  // --- Feature Detection Summary (IXR/iPro only) ---
+  const featureSummary = isFocusPlatform ? '' : buildFeatureSummary(features)
 
-  // --- ISI Details ---
-  const isiDetails = buildISIDetails(features, config, adMeta)
+  // --- Detected Issues ---
+  const issuesList = isFocusPlatform ? '' : buildIssuesList(fixes)
 
-  // --- Scroll Library Replacement Guide ---
-  const scrollGuide = buildScrollLibraryGuide(features)
+  // --- ISI Details (IXR/iPro only — Focus leaves ISI as-is) ---
+  const isiDetails = isFocusPlatform ? '' : buildISIDetails(features, config, adMeta)
 
-  // --- Modal / Polite Loader Guide ---
-  const modalGuide = buildModalPoliteGuide(features)
+  // --- Scroll Library Replacement Guide (IXR/iPro only) ---
+  const scrollGuide = isFocusPlatform ? '' : buildScrollLibraryGuide(features)
 
-  // --- Iframe Removal Guide ---
-  const iframeGuide = buildIframeGuide(features)
+  // --- Modal / Polite Loader Guide (IXR/iPro only) ---
+  const modalGuide = isFocusPlatform ? '' : buildModalPoliteGuide(features)
+
+  // --- Iframe Removal Guide (IXR/iPro only) ---
+  const iframeGuide = isFocusPlatform ? '' : buildIframeGuide(features)
 
   // --- Warnings & Contradictions ---
-  const warnings = buildWarnings(features, animAnalysis, adMeta, config, files)
+  const warnings = buildWarnings(features, animAnalysis, adMeta, config, files, adPlatform)
 
-  // --- Pre-Implementation Checklist ---
-  const checklist = buildChecklist(features, animAnalysis, adMeta, allAssets, config)
+  // --- Pre-Implementation Checklist (IXR/iPro only) ---
+  const checklist = isFocusPlatform ? '' : buildChecklist(features, animAnalysis, adMeta, allAssets, config)
 
   return `# Ad Refactoring Context
 
@@ -227,8 +230,7 @@ function buildAdContext(adPlatform) {
   if (adPlatform === 'ixr') {
     section += '- **Devices:** BrightSign media players and PatientPoint wallboard displays running Chrome 69 — always offline, no internet access\n'
   } else if (adPlatform === 'focus') {
-    // TODO: Focus device specs to be added by focus dev
-    section += '- **Devices:** Focus display devices — specs TBD\n'
+    section += '- **Devices:** Focus precision display ads (300x250) — served via ad server, browser-based\n'
   } else if (adPlatform === 'ipro') {
     section += '- **Devices:** BrightSign media players and PatientPoint wallboard displays running Chrome 69 — always offline, no internet access (same hardware as IXR)\n'
   }
@@ -241,8 +243,7 @@ function buildDeviceSpecs(adPlatform, adType, width, height) {
   if (adPlatform === 'ixr') {
     return buildIXRDeviceSpecs(adType, width, height)
   } else if (adPlatform === 'focus') {
-    // TODO: Focus device specs to be added by focus dev
-    return '## Device Specifications (Focus)\n\n> **TODO:** Focus device specifications have not been configured yet. Contact the development team for Focus platform requirements.\n'
+    return buildFocusDeviceSpecs(width, height)
   } else if (adPlatform === 'ipro') {
     return buildIProDeviceSpecs(width, height)
   }
@@ -411,6 +412,52 @@ function buildIXRDeviceSpecs(adType, width, height) {
   s += '// Easing options\n'
   s += '// Power0.easeNone, Power1.easeIn/Out/InOut, Power2, Power3, Power4\n'
   s += '// Bounce.easeOut, Elastic.easeOut, Back.easeOut\n'
+  s += '```\n'
+
+  return s
+}
+
+function buildFocusDeviceSpecs(width, height) {
+  let s = '## Device Specifications (Focus)\n\n'
+  s += '### Key Differences from IXR\n'
+  s += '- **No appHost** — Focus ads do NOT use appHost integration\n'
+  s += '- **No ad.js** — click handlers are inline `<script>` at the bottom of the HTML\n'
+  s += '- **No ISI restructuring** — leave scrollbars and ISI structure as-is\n'
+  s += '- **No scroller.js** — do not add the standard ISI scroller\n\n'
+
+  s += '### Click Handlers (Required Pattern)\n'
+  s += 'Focus ads use inline click handlers with `getParameterByName` URL parameter fallback:\n'
+  s += '```javascript\n'
+  s += '<script>\n'
+  s += '    var clickTag1 = \'https://www.example.com\';\n'
+  s += '    var clickTag2 = \'https://www.example.com/pi.pdf\';\n\n'
+  s += '    function getParameterByName(name) {\n'
+  s += '        var match = RegExp(\'[?&]\' + name + \'=([^&]*)\').exec(window.location.search);\n'
+  s += '        return match && decodeURIComponent(match[1].replace(/\\+/g, \' \'));\n'
+  s += '    }\n\n'
+  s += '    document.getElementById("mainClick").addEventListener("click", function(){\n'
+  s += '        window.open(getParameterByName(\'clickTag1\')||clickTag1);\n'
+  s += '    });\n'
+  s += '    document.getElementById("piLink").addEventListener("click", function(){\n'
+  s += '        window.open(getParameterByName(\'clickTag2\')||clickTag2);\n'
+  s += '    });\n'
+  s += '</script>\n'
+  s += '```\n'
+  s += '**Key rules:** This script goes inline before `</body>`. `getParameterByName` checks the URL for override values (used by the ad server), falling back to the hardcoded clickTag variables. All links use `window.open()` — no appHost, no openExternalLinkFull.\n\n'
+
+  s += '### What Focus Refactoring Does\n'
+  s += '- **Remove Enabler.js** and its initialization delay / DOMContentLoaded checks\n'
+  s += '- **Replace click handlers** with the getParameterByName pattern shown above\n'
+  s += '- **Leave everything else as-is** — GWD elements, CSS, animations, scrollbars, CDN scripts, ES6+, fonts all stay unchanged\n\n'
+
+  s += '### Console Silencing (Required)\n'
+  s += '```javascript\n'
+  s += 'console.log = console.info = console.warn = console.error = function() {};\n'
+  s += '```\n\n'
+
+  s += '### Ad Size Meta Tag\n'
+  s += '```html\n'
+  s += '<meta name="ad.size" content="width=' + width + ',height=' + height + '">\n'
   s += '```\n'
 
   return s
@@ -601,8 +648,10 @@ function buildImportantNotes(adPlatform) {
     s += '- SVGs are hit-or-miss on Chrome 69/BrightSign. If an SVG doesn\'t render, convert it to PNG.\n'
     s += '- All fonts must be local (no Google Fonts CDN). Do NOT replace brand fonts with web-safe alternatives. Use `@font-face` with local font files, or if font files are unavailable, convert text elements to images.\n'
   } else if (adPlatform === 'focus') {
-    // TODO: Focus-specific notes to be added by focus dev
-    s += '- Focus platform-specific notes TBD.\n'
+    s += '- **Focus is minimal** — only remove Enabler.js delay and add Focus click handlers.\n'
+    s += '- Do NOT modify CSS, scrollbars, animations, GWD elements, fonts, or CDN scripts.\n'
+    s += '- Do NOT add appHost, ad.js, scroller.js, jQuery, autoScroll, or ISI restructuring.\n'
+    s += '- Click handlers use `window.open()` with `getParameterByName()` fallback.\n'
   } else if (adPlatform === 'ipro') {
     s += '- Test all changes against Chrome 69 compatibility.\n'
     s += '- When modifying JavaScript, ensure ALL code is ES5 compliant.\n'
@@ -617,7 +666,7 @@ function buildImportantNotes(adPlatform) {
 }
 
 // ===== HELPER: Asset Inventory =====
-function buildAssetInventory(allAssets, mappedAssets, sceneStructure) {
+function buildAssetInventory(allAssets, mappedAssets, sceneStructure, adPlatform) {
   if (!allAssets || allAssets.length === 0) return ''
 
   const assetUsage = sceneStructure?.assetUsage || {}
@@ -680,7 +729,7 @@ function buildAssetInventory(allAssets, mappedAssets, sceneStructure) {
   let section = `## Asset Inventory (${totalCount} total, ${mappedCount} auto-mapped, ${totalCount - mappedCount} unmapped)\n\n`
 
   if (svgCount > 0) {
-    section += `> **SVG Warning:** ${svgCount} SVG file(s) found. SVGs are hit-or-miss on Chrome 69/BrightSign. If any SVG fails to render, convert it to PNG.\n\n`
+    if (adPlatform !== 'focus') section += `> **SVG Warning:** ${svgCount} SVG file(s) found. SVGs are hit-or-miss on Chrome 69/BrightSign. If any SVG fails to render, convert it to PNG.\n\n`
   }
 
   const formatEntry = (entry) => {
@@ -760,8 +809,25 @@ function buildAssetInventory(allAssets, mappedAssets, sceneStructure) {
 }
 
 // ===== HELPER: Warnings & Contradictions =====
-function buildWarnings(features, animAnalysis, adMeta, config, files) {
+function buildWarnings(features, animAnalysis, adMeta, config, files, adPlatform) {
   const warnings = []
+  var isFocusPlatform = adPlatform === 'focus'
+
+  // Focus ads skip most warnings — they have internet, modern browser, keep GWD/GSAP/CSS as-is
+  if (isFocusPlatform) {
+    // Only show Enabler warning for Focus
+    if (features?.hasEnabler) {
+      warnings.push(
+        '**Enabler.js Detected:** Remove Enabler.js and its initialization delay. Replace Enabler.exit() calls with the Focus click handler pattern (getParameterByName + window.open).'
+      )
+    }
+    if (warnings.length === 0) return ''
+    let section = '## WARNINGS — Read Before Starting\n\n'
+    for (const w of warnings) {
+      section += `> ${w}\n\n`
+    }
+    return section
+  }
 
   // GSAP 3.x detected but device requires TweenMax 2.0.1
   if (animAnalysis?.type === 'gsap3' || (animAnalysis?.type === 'gwd' && animAnalysis?.details?.some(d => /GSAP 3/i.test(d)))) {

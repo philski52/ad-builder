@@ -170,8 +170,9 @@ export async function parseAdZip(zipFile, options) {
     }
 
     // Check for GWD (Google Web Designer) ads
+    // Focus keeps GWD elements — only IXR/iPro converts them
     const gwdDetection = detectGWD(html)
-    if (gwdDetection.isGWD) {
+    if (gwdDetection.isGWD && platform !== 'focus') {
       result.isGWD = true
 
       result.fixes.push({
@@ -213,25 +214,25 @@ export async function parseAdZip(zipFile, options) {
       })
     }
 
-    // Detect and convert CSS animations to TweenMax
-    const cssAnimResult = detectAndConvertCSSAnimations(html)
-    html = cssAnimResult.html
-    if (cssAnimResult.animations.length > 0) {
-      result.fixes.push({
-        id: 'css-animations',
-        category: 'Animation',
-        issue: `${cssAnimResult.animations.length} CSS animation(s) detected`,
-        reason: 'CSS animations are less reliable on target devices than TweenMax',
-        action: 'auto',
-        resolution: 'Converting to TweenMax animations for better device compatibility'
-      })
-
-      // Add converted animations to result
-      result.cssAnimationsConverted = cssAnimResult.animations
+    // Detect and convert CSS animations to TweenMax (IXR/iPro only — Focus keeps CSS animations)
+    if (platform !== 'focus') {
+      const cssAnimResult = detectAndConvertCSSAnimations(html)
+      html = cssAnimResult.html
+      if (cssAnimResult.animations.length > 0) {
+        result.fixes.push({
+          id: 'css-animations',
+          category: 'Animation',
+          issue: `${cssAnimResult.animations.length} CSS animation(s) detected`,
+          reason: 'CSS animations are less reliable on target devices than TweenMax',
+          action: 'auto',
+          resolution: 'Converting to TweenMax animations for better device compatibility'
+        })
+        result.cssAnimationsConverted = cssAnimResult.animations
+      }
     }
 
-    // Remove custom scroll implementations (devices use standard ISI scroller)
-    const scrollDetection = detectScrollImplementations(html, adJs)
+    // Remove custom scroll implementations (IXR/iPro only — Focus leaves scrollbars as-is)
+    const scrollDetection = platform !== 'focus' ? detectScrollImplementations(html, adJs) : []
     if (scrollDetection.length > 0) {
       scrollDetection.forEach(scroll => {
         result.fixes.push({
@@ -246,7 +247,7 @@ export async function parseAdZip(zipFile, options) {
     }
 
     const htmlBeforeScrollRemoval = html
-    html = removeScrollImplementations(html)
+    if (platform !== 'focus') html = removeScrollImplementations(html)
     if (html !== htmlBeforeScrollRemoval) {
       result.fixes.push({
         id: 'scroll-removed',
@@ -325,7 +326,7 @@ export async function parseAdZip(zipFile, options) {
     result.warnings.push(...assetResult.warnings)
 
     // 8. Check for compatibility issues (scan all JS files)
-    const compatWarnings = checkCompatibility(html, adJs, result.template?.brand, otherJsCode)
+    const compatWarnings = platform !== 'focus' ? checkCompatibility(html, adJs, result.template?.brand, otherJsCode) : []
     result.warnings.push(...compatWarnings)
 
     // 9. Detect animation library used (scan all JS files)
@@ -335,24 +336,26 @@ export async function parseAdZip(zipFile, options) {
       // No fix needed - animations are preserved in refactored export
     }
 
-    // 10. Check for animation wrapper (CP only - MR ads don't need it)
-    // Use user-selected adType if available, otherwise fall back to template brand
-    var resolvedBrand = adType || result.template?.brand
-    const hasOnWallboardIdle = html.includes('onWallboardIdleSlideDisplay') || adJs.includes('onWallboardIdleSlideDisplay')
-    if (animationLibrary && !hasOnWallboardIdle && resolvedBrand === 'cp') {
-      result.fixes.push({
-        id: 'animation-wrapper',
-        category: 'Device Compatibility',
-        issue: 'Missing onWallboardIdleSlideDisplay wrapper',
-        reason: 'CP ads require this function for devices to trigger animation playback',
-        action: 'auto',
-        resolution: 'Will wrap existing animation code in device callback'
-      })
+    // 10. Check for animation wrapper (CP only, IXR/iPro only)
+    if (platform !== 'focus') {
+      var resolvedBrand = adType || result.template?.brand
+      const hasOnWallboardIdle = html.includes('onWallboardIdleSlideDisplay') || adJs.includes('onWallboardIdleSlideDisplay')
+      if (animationLibrary && !hasOnWallboardIdle && resolvedBrand === 'cp') {
+        result.fixes.push({
+          id: 'animation-wrapper',
+          category: 'Device Compatibility',
+          issue: 'Missing onWallboardIdleSlideDisplay wrapper',
+          reason: 'CP ads require this function for devices to trigger animation playback',
+          action: 'auto',
+          resolution: 'Will wrap existing animation code in device callback'
+        })
+      }
     }
 
-    // 11. Analyze animation complexity and determine what needs manual rebuild
-    // Scan ALL JS files — animation code can live in animation.js, creative.js, timeline.js, etc.
-    result.animationAnalysis = analyzeAnimations(html, adJs, mainJs, otherJsCode)
+    // 11. Analyze animation complexity (IXR/iPro only — Focus keeps animations as-is)
+    if (platform !== 'focus') {
+      result.animationAnalysis = analyzeAnimations(html, adJs, mainJs, otherJsCode)
+    }
 
     // 12. Parse scene structure to understand asset relationships
     const sceneStructure = parseSceneStructure(html, adJs)
@@ -374,7 +377,7 @@ export async function parseAdZip(zipFile, options) {
     result.manualTasks = buildManualTasksList(result, html, adJs)
 
     // 13. Add fixes for compatibility issues
-    addCompatibilityFixes(result, html, adJs)
+    if (platform !== 'focus') addCompatibilityFixes(result, html, adJs)
 
     // 14. === APPLY REFACTORING ===
     // Generate refactored versions of the files with all auto-fixes applied
@@ -1934,6 +1937,30 @@ function analyzeAnimations(html, adJs, mainJs, otherJsCode) {
  */
 function buildManualTasksList(result, html, adJs) {
   const tasks = []
+  var isFocusPlatform = result.adPlatform === 'focus'
+
+  // Focus ads only need: Enabler removal + click conversion — skip all IXR tasks
+  if (isFocusPlatform) {
+    if (result.features?.hasEnabler) {
+      tasks.push({
+        id: 'remove-enabler-focus',
+        priority: 'high',
+        title: 'Remove Enabler.js Loading Delay',
+        description: 'This ad uses Enabler.js with an initialization delay. Remove the Enabler script, its DOMContentLoaded/isInitialized checks, and let the ad render immediately.',
+        action: '1) Remove Enabler.js <script> tag, 2) Remove Enabler.addEventListener and isInitialized checks, 3) Remove any WebComponentsReady or DOMContentLoaded wrappers that gate ad display'
+      })
+    }
+    if (!result.detectedUrls || result.detectedUrls.length === 0) {
+      tasks.push({
+        id: 'add-focus-clicks',
+        priority: 'high',
+        title: 'Add Focus Click Handlers',
+        description: 'No click URLs were auto-detected. Add inline click handlers with getParameterByName fallback.',
+        action: 'Identify clickable elements, add var clickTag1/2/3 declarations with URLs, add getParameterByName function, add addEventListener handlers before </body>'
+      })
+    }
+    return tasks
+  }
 
   // Check for unmapped assets
   const unmappedAssets = result.allAssets?.filter(a => !a.mapped) || []
@@ -3024,8 +3051,10 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 6. Add appHost integration if missing
-  if (!refactoredHtml.includes('appHost') && !refactoredAdJs.includes('appHost')) {
+  // 6. Add appHost integration if missing (IXR/iPro only — Focus doesn't use appHost)
+  var isIxrOrIpro = result.adPlatform === 'ixr' || result.adPlatform === 'ipro'
+  var isFocus = result.adPlatform === 'focus'
+  if (isIxrOrIpro && !refactoredHtml.includes('appHost') && !refactoredAdJs.includes('appHost')) {
     const appHostAdded = addAppHostIntegration(refactoredHtml)
     refactoredHtml = appHostAdded.html
     appliedFixes.push({
@@ -3040,8 +3069,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     return /__webpack_modules__|__webpack_require__|webpackJsonp|creatopyEmbed/i.test(content)
   }
 
-  // 7. Convert ES6 to ES5 for better device compatibility (ad.js)
-  if (!isUnsafeBundledCode(refactoredAdJs)) {
+  // 7. Convert ES6 to ES5 for better device compatibility (IXR/iPro only)
+  if (isIxrOrIpro && !isUnsafeBundledCode(refactoredAdJs)) {
     var es6Converted = convertES6ToES5(refactoredAdJs)
     if (es6Converted.changed) {
       refactoredAdJs = es6Converted.js
@@ -3053,8 +3082,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 7b. Convert ES6 to ES5 in main.js as well (skip webpack bundles)
-  if (refactoredMainJs && !isUnsafeBundledCode(refactoredMainJs)) {
+  // 7b. Convert ES6 to ES5 in main.js (IXR/iPro only)
+  if (isIxrOrIpro && refactoredMainJs && !isUnsafeBundledCode(refactoredMainJs)) {
     var mainJsEs6Converted = convertES6ToES5(refactoredMainJs)
     if (mainJsEs6Converted.changed) {
       refactoredMainJs = mainJsEs6Converted.js
@@ -3066,8 +3095,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 7c. Convert window.open(clickTagX) in main.js to device-compatible calls
-  if (refactoredMainJs && /window\.open\s*\(\s*(?:window\.)?(clickTag\w*)/i.test(refactoredMainJs)) {
+  // 7c. Convert window.open(clickTagX) in main.js to device-compatible calls (IXR/iPro only)
+  if (isIxrOrIpro && refactoredMainJs && /window\.open\s*\(\s*(?:window\.)?(clickTag\w*)/i.test(refactoredMainJs)) {
     // Pass adJs so we can skip injecting helper functions if ad.js already has them
     var mainJsWindowOpenConverted = convertWindowOpenInJS(refactoredMainJs, refactoredAdJs)
     if (mainJsWindowOpenConverted.changed) {
@@ -3080,8 +3109,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 7d. Convert GSAP 3.x to TweenMax 2.0.1 in ad.js (skip webpack bundles)
-  var gsap3Converted = !isUnsafeBundledCode(refactoredAdJs) ? convertGsap3ToTweenMax(refactoredAdJs) : { js: refactoredAdJs, changed: false, changes: [] }
+  // 7d. Convert GSAP 3.x to TweenMax 2.0.1 in ad.js (IXR/iPro only — Focus has internet, GSAP 3 works)
+  var gsap3Converted = (isIxrOrIpro && !isUnsafeBundledCode(refactoredAdJs)) ? convertGsap3ToTweenMax(refactoredAdJs) : { js: refactoredAdJs, changed: false, changes: [] }
   if (gsap3Converted.changed) {
     refactoredAdJs = gsap3Converted.js
     appliedFixes.push({
@@ -3091,8 +3120,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     })
   }
 
-  // 7e. Convert GSAP 3.x to TweenMax 2.0.1 in main.js (skip webpack bundles)
-  if (refactoredMainJs && !isUnsafeBundledCode(refactoredMainJs)) {
+  // 7e. Convert GSAP 3.x to TweenMax 2.0.1 in main.js (IXR/iPro only)
+  if (isIxrOrIpro && refactoredMainJs && !isUnsafeBundledCode(refactoredMainJs)) {
     var mainJsGsap3Converted = convertGsap3ToTweenMax(refactoredMainJs)
     if (mainJsGsap3Converted.changed) {
       refactoredMainJs = mainJsGsap3Converted.js
@@ -3104,10 +3133,9 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 7f. Process ALL other JS files (ES6→ES5, GSAP 3→TweenMax)
-  // Files like animation.js, creative.js, timeline.js often contain animation code
+  // 7f. Process ALL other JS files (ES6→ES5, GSAP 3→TweenMax) — IXR/iPro only
   var libraryPattern = /jquery|tweenmax|tweenlite|timelinemax|timelinelite|gsap[\._-]|createjs|iscroll|webcomponents|enabler|imagesloaded/i
-  if (otherFiles) {
+  if (isIxrOrIpro && otherFiles) {
     for (var otherFilename in otherFiles) {
       if (!/\.js$/i.test(otherFilename)) continue
       if (libraryPattern.test(otherFilename)) continue
@@ -3130,12 +3158,14 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
         otherChanges = otherChanges.concat(otherEs6.changes)
       }
 
-      // GSAP 3 → TweenMax
-      var otherGsap = convertGsap3ToTweenMax(otherContent)
-      if (otherGsap.changed) {
-        otherContent = otherGsap.js
-        otherChanged = true
-        otherChanges = otherChanges.concat(otherGsap.changes)
+      // GSAP 3 → TweenMax (IXR/iPro only — Focus has internet, GSAP 3 works)
+      if (isIxrOrIpro) {
+        var otherGsap = convertGsap3ToTweenMax(otherContent)
+        if (otherGsap.changed) {
+          otherContent = otherGsap.js
+          otherChanged = true
+          otherChanges = otherChanges.concat(otherGsap.changes)
+        }
       }
 
       if (otherChanged) {
@@ -3149,8 +3179,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 8. Convert ES6 in inline scripts
-  const inlineEs6Converted = convertInlineES6(refactoredHtml)
+  // 8. Convert ES6 in inline scripts (IXR/iPro only)
+  const inlineEs6Converted = isIxrOrIpro ? convertInlineES6(refactoredHtml) : { html: refactoredHtml, changed: false, changes: [] }
   if (inlineEs6Converted.changed) {
     refactoredHtml = inlineEs6Converted.html
     appliedFixes.push({
@@ -3160,8 +3190,8 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     })
   }
 
-  // 8b. Convert window.open(clickTag) in inline <script> blocks
-  // Single-file ads often have window.open() in inline scripts, not in external JS files
+  // 8b. Convert window.open(clickTag) in inline <script> blocks (IXR/iPro only — Focus uses window.open natively)
+  if (isIxrOrIpro) {
   var inlineWindowOpenPattern = /<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/gi
   var inlineWindowOpenChanges = []
   refactoredHtml = refactoredHtml.replace(inlineWindowOpenPattern, function(fullMatch, scriptContent) {
@@ -3197,15 +3227,15 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
       details: inlineWindowOpenChanges
     })
   }
+  } // end isIxrOrIpro block for step 8b
 
-  // 9. Add ISI scroller if ISI is detected
-  // Native CSS scrollbars do NOT work on IXR devices - must use dynamic JS scroller
+  // 9. Add ISI scroller if ISI is detected (IXR/iPro only — Focus leaves scrollbars as-is)
   const hasISI = result.template?.features?.includes('isi') ||
                  refactoredHtml.includes('id="outerMostDiv"') ||
                  refactoredHtml.includes('id="innerMostDiv"') ||
                  refactoredHtml.includes('id="isi-controls"')
 
-  if (hasISI) {
+  if (isIxrOrIpro && hasISI) {
     const isiScrollerAdded = addISIScroller(refactoredHtml, refactoredAdJs, result.config || {})
     if (isiScrollerAdded.changed) {
       refactoredHtml = isiScrollerAdded.html
@@ -3230,6 +3260,9 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
       })
     }
   }
+
+  // 11-17.5: IXR/iPro click handler conversions — Focus handles clicks differently (inline getParameterByName)
+  if (isIxrOrIpro) {
 
   // 11. Add device-compatible click handlers
   var clickHandlersConverted = convertClickHandlers(refactoredHtml, refactoredAdJs)
@@ -3341,8 +3374,44 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 18. Generate ad.js for GWD ads with extracted exit URLs (when no ad.js exists)
-  if (!refactoredAdJs && result.detectedUrls && result.detectedUrls.length > 0) {
+  } // end isIxrOrIpro click handler block
+
+  // 18. Generate click handlers for GWD ads with extracted exit URLs
+  // IXR/iPro: generate ad.js file | Focus: generate inline script with getParameterByName
+  if (!refactoredAdJs && result.detectedUrls && result.detectedUrls.length > 0 && isFocus) {
+    // Focus: inline click handlers with getParameterByName fallback
+    var focusExitUrls = result.detectedUrls.filter(function(u) {
+      return u.type === 'pdf' || u.type === 'gwd-exit'
+    })
+    if (focusExitUrls.length > 0) {
+      var focusScript = '\n<script>\n'
+      // clickTag declarations
+      focusExitUrls.forEach(function(exitUrl, i) {
+        focusScript += '    var clickTag' + (i + 1) + ' = \'' + exitUrl.url + '\';\n'
+      })
+      focusScript += '\n'
+      // getParameterByName function
+      focusScript += '    function getParameterByName(name) {\n'
+      focusScript += '        var match = RegExp(\'[?&]\' + name + \'=([^&]*)\').exec(window.location.search);\n'
+      focusScript += '        return match && decodeURIComponent(match[1].replace(/\\+/g, \' \'));\n'
+      focusScript += '    }\n\n'
+      // addEventListener handlers
+      var focusChanges = []
+      focusExitUrls.forEach(function(exitUrl, i) {
+        var varName = 'clickTag' + (i + 1)
+        focusScript += '    document.getElementById("' + exitUrl.id + '").addEventListener("click", function(){ window.open(getParameterByName(\'' + varName + '\')||' + varName + '); });\n'
+        focusChanges.push('Added Focus click handler for #' + exitUrl.id + ' → ' + varName)
+      })
+      focusScript += '</script>\n'
+      // Inject before </body>
+      refactoredHtml = refactoredHtml.replace(/<\/body>/i, focusScript + '</body>')
+      appliedFixes.push({
+        id: 'generate-focus-clicks',
+        description: 'Generated inline Focus click handlers with getParameterByName fallback',
+        details: focusChanges
+      })
+    }
+  } else if (!refactoredAdJs && result.detectedUrls && result.detectedUrls.length > 0) {
     var exitUrls = result.detectedUrls.filter(function(u) {
       return u.type === 'pdf' || u.type === 'gwd-exit'
     })
@@ -3430,52 +3499,55 @@ function applyRefactoring(result, html, adJs, mainJs, otherFiles) {
     }
   }
 
-  // 19. Remove Google Fonts CDN links (won't work offline on devices)
-  if (result.features?.hasGoogleFonts) {
-    var fontsRemoved = removeGoogleFontsCDN(refactoredHtml)
-    if (fontsRemoved.changed) {
-      refactoredHtml = fontsRemoved.html
+  // 19-21: CDN and font removal (IXR/iPro only — Focus has internet access)
+  if (isIxrOrIpro) {
+    // 19. Remove Google Fonts CDN links (won't work offline on devices)
+    if (result.features?.hasGoogleFonts) {
+      var fontsRemoved = removeGoogleFontsCDN(refactoredHtml)
+      if (fontsRemoved.changed) {
+        refactoredHtml = fontsRemoved.html
+        appliedFixes.push({
+          id: 'remove-google-fonts',
+          description: 'Removed Google Fonts CDN links (devices are offline)',
+          details: fontsRemoved.changes
+        })
+      }
+    }
+
+    // 19b. Remove inline @font-face blocks with CDN src URLs (won't load offline)
+    if (result.features?.hasInlineCDNFontFace) {
+      var fontFaceRemoved = removeInlineCDNFontFace(refactoredHtml)
+      if (fontFaceRemoved.changed) {
+        refactoredHtml = fontFaceRemoved.html
+        appliedFixes.push({
+          id: 'remove-inline-cdn-fontface',
+          description: 'Removed inline @font-face blocks with CDN URLs (devices are offline)',
+          details: fontFaceRemoved.changes
+        })
+      }
+    }
+
+    // 20. Remove CSS custom properties / variables (not supported in Chrome 69)
+    var cssVarResult = convertCSSVariables(refactoredHtml)
+    if (cssVarResult.changed) {
+      refactoredHtml = cssVarResult.html
       appliedFixes.push({
-        id: 'remove-google-fonts',
-        description: 'Removed Google Fonts CDN links (devices are offline)',
-        details: fontsRemoved.changes
+        id: 'convert-css-variables',
+        description: 'Resolved CSS custom properties to literal values (Chrome 69 compatibility)',
+        details: cssVarResult.changes
       })
     }
-  }
 
-  // 19b. Remove inline @font-face blocks with CDN src URLs (won't load offline)
-  if (result.features?.hasInlineCDNFontFace) {
-    var fontFaceRemoved = removeInlineCDNFontFace(refactoredHtml)
-    if (fontFaceRemoved.changed) {
-      refactoredHtml = fontFaceRemoved.html
+    // 21. Remove known CDN script/link tags (devices are offline)
+    var cdnRemoved = removeKnownCDNTags(refactoredHtml)
+    if (cdnRemoved.changed) {
+      refactoredHtml = cdnRemoved.html
       appliedFixes.push({
-        id: 'remove-inline-cdn-fontface',
-        description: 'Removed inline @font-face blocks with CDN URLs (devices are offline)',
-        details: fontFaceRemoved.changes
+        id: 'remove-cdn-tags',
+        description: 'Removed CDN script/link tags (devices are offline)',
+        details: cdnRemoved.changes
       })
     }
-  }
-
-  // 20. Remove CSS custom properties / variables (not supported in Chrome 69)
-  var cssVarResult = convertCSSVariables(refactoredHtml)
-  if (cssVarResult.changed) {
-    refactoredHtml = cssVarResult.html
-    appliedFixes.push({
-      id: 'convert-css-variables',
-      description: 'Resolved CSS custom properties to literal values (Chrome 69 compatibility)',
-      details: cssVarResult.changes
-    })
-  }
-
-  // 21. Remove known CDN script/link tags (devices are offline)
-  var cdnRemoved = removeKnownCDNTags(refactoredHtml)
-  if (cdnRemoved.changed) {
-    refactoredHtml = cdnRemoved.html
-    appliedFixes.push({
-      id: 'remove-cdn-tags',
-      description: 'Removed CDN script/link tags (devices are offline)',
-      details: cdnRemoved.changes
-    })
   }
 
   // 22. Remove tracking pixels and impression tags (devices are offline, these cause errors)

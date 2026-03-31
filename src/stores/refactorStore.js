@@ -98,7 +98,7 @@ export const useRefactorStore = create(
           if (importResult.refactoredFiles.mainJs) {
             files[paths.mainJs || (rootPrefix + 'js/main.js')] = importResult.refactoredFiles.mainJs
           }
-          if (importResult.refactoredFiles.scrollerJs) {
+          if (importResult.refactoredFiles.scrollerJs && importResult.adPlatform !== 'focus') {
             files[rootPrefix + 'script/scroller.js'] = importResult.refactoredFiles.scrollerJs
           }
           // Additional JS files (refactored other JS) — use original paths from filePaths.otherFiles
@@ -201,8 +201,8 @@ export const useRefactorStore = create(
           detectedUrls: importResult.detectedUrls || [],
         }
 
-        // --- Bundle standard device libraries ---
-        // Check which libraries are already present in the imported files
+        // --- Bundle standard device libraries (IXR/iPro only — Focus doesn't inject libraries) ---
+        const isFocusPlatform = (importResult.adPlatform === 'focus')
         const allFilePaths = Object.keys(files).map(p => p.toLowerCase())
         const hasJquery = allFilePaths.some(p => p.includes('jquery'))
         const hasAutoScroll = allFilePaths.some(p => p.includes('autoscroll'))
@@ -222,33 +222,33 @@ export const useRefactorStore = create(
           return null
         }
 
-        // jQuery 2.1.4 — required for ALL ads
-        if (!hasJquery) {
+        // jQuery 2.1.4 — required for IXR/iPro ads (Focus keeps whatever the agency included)
+        if (!isFocusPlatform && !hasJquery) {
           const jqueryContent = await fetchLib('js/jquery-2.1.4.min.js')
           if (jqueryContent) {
             files[rootPrefix + 'js/jquery-2.1.4.min.js'] = jqueryContent
           }
         }
 
-        // autoScroll.js — required for MR and INT ads only (NOT CP)
-        if (isMrOrInt && !hasAutoScroll) {
+        // autoScroll.js — required for MR and INT IXR/iPro ads only
+        if (!isFocusPlatform && isMrOrInt && !hasAutoScroll) {
           const autoScrollContent = await fetchLib('js/autoScroll.js')
           if (autoScrollContent) {
             files[rootPrefix + 'js/autoScroll.js'] = autoScrollContent
           }
         }
 
-        // scroller.css — required for ALL ISI ads (CP, MR, INT)
-        if (hasISI && !hasScrollerCss) {
+        // scroller.css — required for IXR/iPro ISI ads (Focus leaves scrollbars as-is)
+        if (!isFocusPlatform && hasISI && !hasScrollerCss) {
           const scrollerContent = await fetchLib('css/scroller.css')
           if (scrollerContent) {
             files[rootPrefix + 'css/scroller.css'] = scrollerContent
           }
         }
 
-        // Ensure script/link tags exist in index.html for bundled libraries
+        // Ensure script/link tags exist in index.html for bundled libraries (IXR/iPro only)
         const htmlPath = paths.html || (rootPrefix + 'index.html')
-        if (files[htmlPath]) {
+        if (!isFocusPlatform && files[htmlPath]) {
           let html = files[htmlPath]
           const htmlLower = html.toLowerCase()
 
