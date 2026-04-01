@@ -152,10 +152,10 @@ export const templates = [
     category: 'video',
     brand: 'int',
     description: 'Video ad with 1-2 CTA buttons (PI, MG)',
-    dimensions: { width: 1000, height: 750 },
+    dimensions: { width: 1000, height: 1000 },
     features: ['video', 'buttons'],
     requiredAssets: ['video'],
-    configFields: ['clickTag3', 'clickTag4', 'videoHeight', 'showVideoControls'],
+    configFields: ['clickTag1', 'clickTag2', 'videoHeight', 'showVideoControls'],
     thumbnail: null
   },
   {
@@ -164,7 +164,7 @@ export const templates = [
     category: 'video',
     brand: 'int',
     description: 'Video ad with 3-4 CTA buttons',
-    dimensions: { width: 1000, height: 750 },
+    dimensions: { width: 1000, height: 1600 },
     features: ['video', 'buttons'],
     requiredAssets: ['video'],
     configFields: ['clickTag1', 'clickTag2', 'clickTag3', 'clickTag4', 'videoHeight', 'showVideoControls'],

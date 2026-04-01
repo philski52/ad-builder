@@ -7,7 +7,7 @@ function Sidebar({ activeSection, onSectionChange }) {
   const sections = [
     { id: 'assets', label: 'Assets', icon: 'image' },
     { id: 'config', label: 'Configuration', icon: 'settings' },
-    ...(currentTemplate && (!hasFeature(currentTemplate, 'video') || hasFeature(currentTemplate, 'background'))
+    ...(currentTemplate && (!hasFeature(currentTemplate, 'video') || hasFeature(currentTemplate, 'background') || hasFeature(currentTemplate, 'buttons'))
       ? [{ id: 'zones', label: 'Click Zones', icon: 'link' }]
       : []),
     ...(currentTemplate && hasFeature(currentTemplate, 'isi')

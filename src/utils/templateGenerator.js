@@ -1,25 +1,30 @@
 // Template code generator
 // Generates HTML, JS, and CSS based on template type and configuration
 
-import { hasFeature } from '../templates'
+import { hasFeature } from '../templates';
 
 /**
  * Generate all template code files
  */
-export function generateTemplateCode(template, config, assets, animations = []) {
-  const hasISI = hasFeature(template, 'isi')
+export function generateTemplateCode(
+  template,
+  config,
+  assets,
+  animations = [],
+) {
+  const hasISI = hasFeature(template, 'isi');
   const hasExpandable = hasFeature(template, 'expandable') && config.expandableEnabled
-  const hasVideo = hasFeature(template, 'video')
+  const hasVideo = hasFeature(template, 'video');
   const hasBackground = hasFeature(template, 'background')
   const hasBgVideo = hasVideo && hasBackground
-  const hasButtons = hasVideo && !hasBgVideo && config.buttonCount > 0
-  const hasClickZones = (config.clickZones || []).length > 0
+  const hasButtons = hasVideo && !hasBgVideo && hasFeature(template, 'buttons') && config.buttonCount > 0;
+  const hasClickZones = (config.clickZones || []).length > 0;
 
   const result = {
     html: generateHTML(template, config, assets, animations),
     js: generateAdJS(config),
-    css: generateCSS(config)
-  }
+    css: generateCSS(config, hasButtons),
+  };
 
   if (hasISI) {
     result.scrollerCss = generateScrollerCSS(config)
@@ -33,7 +38,7 @@ export function generateTemplateCode(template, config, assets, animations = []) 
   }
 
   if (hasButtons) {
-    result.buttonsCss = generateButtonsCSS(config)
+    result.buttonsCss = generateButtonsCSS(config);
   }
 
   if (hasClickZones) {
@@ -45,7 +50,7 @@ export function generateTemplateCode(template, config, assets, animations = []) 
     result.bgVideoJs = generateBgVideoJS(config)
   }
 
-  return result
+  return result;
 }
 
 /**
@@ -53,44 +58,44 @@ export function generateTemplateCode(template, config, assets, animations = []) 
  */
 function formatAnimProps(props) {
   const parts = Object.entries(props).map(([k, v]) => {
-    if (k === 'ease') return `${k}: ${v}`
-    if (typeof v === 'string') return `${k}: "${v}"`
-    return `${k}: ${v}`
-  })
-  return '{ ' + parts.join(', ') + ' }'
+    if (k === 'ease') return `${k}: ${v}`;
+    if (typeof v === 'string') return `${k}: "${v}"`;
+    return `${k}: ${v}`;
+  });
+  return '{ ' + parts.join(', ') + ' }';
 }
 
 /**
  * Generate TweenMax animation JS from animation data array
  */
 function generateAnimationJS(animations) {
-  if (!animations || animations.length === 0) return ''
+  if (!animations || animations.length === 0) return '';
 
-  const sorted = [...animations].sort((a, b) => a.startTime - b.startTime)
-  const setLines = []
-  const toLines = []
-  const initialized = new Set()
+  const sorted = [...animations].sort((a, b) => a.startTime - b.startTime);
+  const setLines = [];
+  const toLines = [];
+  const initialized = new Set();
 
   for (const anim of sorted) {
-    const sel = `"#${anim.target}"`
-    const props = {}
-    const initProps = {}
+    const sel = `"#${anim.target}"`;
+    const props = {};
+    const initProps = {};
 
     if (anim.effects.autoAlpha !== undefined) {
-      props.autoAlpha = anim.effects.autoAlpha.to
-      initProps.autoAlpha = anim.effects.autoAlpha.from
+      props.autoAlpha = anim.effects.autoAlpha.to;
+      initProps.autoAlpha = anim.effects.autoAlpha.from;
     }
     if (anim.effects.x !== undefined) {
-      props.x = anim.effects.x.to
-      initProps.x = anim.effects.x.from
+      props.x = anim.effects.x.to;
+      initProps.x = anim.effects.x.from;
     }
     if (anim.effects.y !== undefined) {
-      props.y = anim.effects.y.to
-      initProps.y = anim.effects.y.from
+      props.y = anim.effects.y.to;
+      initProps.y = anim.effects.y.from;
     }
     if (anim.effects.rotation !== undefined) {
-      props.rotation = anim.effects.rotation.to
-      initProps.rotation = anim.effects.rotation.from
+      props.rotation = anim.effects.rotation.to;
+      initProps.rotation = anim.effects.rotation.from;
     }
     if (anim.effects.scale !== undefined) {
       props.scale = anim.effects.scale.to
@@ -109,17 +114,22 @@ function generateAnimationJS(animations) {
       initProps.zIndex = anim.effects.zIndex.from
     }
     if (anim.easing && anim.easing !== 'none') {
-      props.ease = anim.easing
+      props.ease = anim.easing;
     }
 
     if (!initialized.has(anim.target) && Object.keys(initProps).length > 0) {
-      initialized.add(anim.target)
-      setLines.push(`    TweenMax.set(${sel}, ${formatAnimProps(initProps)});`)
+      initialized.add(anim.target);
+      setLines.push(`    TweenMax.set(${sel}, ${formatAnimProps(initProps)});`);
     }
 
-    const label = anim.target.replace(/([a-z])(\d)/, '$1 $2').toUpperCase() + ' - ' + (anim.type === 'in' ? 'IN' : 'OUT')
-    toLines.push(`    //${label}`)
-    toLines.push(`    tl.to(${sel}, ${anim.duration}, ${formatAnimProps(props)}, ${anim.startTime});`)
+    const label =
+      anim.target.replace(/([a-z])(\d)/, '$1 $2').toUpperCase() +
+      ' - ' +
+      (anim.type === 'in' ? 'IN' : 'OUT');
+    toLines.push(`    //${label}`);
+    toLines.push(
+      `    tl.to(${sel}, ${anim.duration}, ${formatAnimProps(props)}, ${anim.startTime});`,
+    );
   }
 
   return `
@@ -142,53 +152,60 @@ window.addEventListener('message', function(e) {
         tl.restart();
     }
 });
-`
+`;
 }
 
 /**
  * Generate index.html
  */
 export function generateHTML(template, config, assets, animations) {
-  const hasISI = hasFeature(template, 'isi')
+  const hasISI = hasFeature(template, 'isi');
   const hasExpandable = hasFeature(template, 'expandable') && config.expandableEnabled
-  const hasAnimation = hasFeature(template, 'animation')
-  const hasVideo = hasFeature(template, 'video')
+  const hasAnimation = hasFeature(template, 'animation');
+  const hasVideo = hasFeature(template, 'video');
+  const hasButtons = hasFeature(template, 'buttons');
   const hasBackground = hasFeature(template, 'background')
   const hasBgVideo = hasVideo && hasBackground
   const buttonCount = hasBgVideo ? 0 : (config.buttonCount || 0)
-  const clickZones = config.clickZones || []
-  const anims = animations || []
+  const clickZones = config.clickZones || [];
+  const anims = animations || [];
 
   // Generate frame HTML for animated templates
-  const frames = assets.frames || []
-  let framesHTML = ''
+  const frames = assets.frames || [];
+  let framesHTML = '';
   if (hasAnimation && frames.length > 0) {
-    framesHTML = frames.map((_, i) => `
+    framesHTML = frames
+      .map(
+        (_, i) => `
         <div id="frame${i + 1}">
             <img src="assets/frame${i + 1}.png" width="${config.dimensions.width}">
-        </div>`).join('')
+        </div>`,
+      )
+      .join('');
   }
 
   // Generate button HTML
-  const buttonsHTML = hasVideo && buttonCount > 0 ?
-    Array.from({ length: buttonCount }, (_, i) => {
-      const btn = config.buttons[i] || {}
-      return `<div id="ctaButton${i + 1}" class="cta-button">${btn.text || `Button ${i + 1}`}</div>`
-    }).join('\n        ') : ''
+  const buttonsHTML =
+    hasVideo && hasButtons && buttonCount > 0
+      ? Array.from({ length: buttonCount }, (_, i) => {
+          const btn = config.buttons[i] || {};
+          return `<div id="ctaButton${i + 1}" class="cta-button" justify-content="center"><p>${btn.text || `Button ${i + 1}</p>`}</div>`;
+        }).join('\n        ')
+      : '';
 
   // Generate click zone HTML - non-ISI zones (go in container)
   const containerZonesHTML = clickZones
-    .filter(z => !z.inISI)
-    .map(z => `<div id="${z.id}" class="click-zone"></div>`)
-    .join('\n        ')
+    .filter((z) => !z.inISI)
+    .map((z) => `<div id="${z.id}" class="click-zone"${hasVideo && z.pauseVideo ? ' onclick="pauseVid();"' : ''}></div>`)
+    .join('\n        ');
 
   // Generate click zone HTML - ISI zones (go in innerMostDiv)
   const isiZonesHTML = clickZones
-    .filter(z => z.inISI)
-    .map(z => `<div id="${z.id}" class="click-zone"></div>`)
-    .join('\n                ')
+    .filter((z) => z.inISI)
+    .map((z) => `<div id="${z.id}" class="click-zone"></div>`)
+    .join('\n                ');
 
-  const hasClickZones = clickZones.length > 0
+  const hasClickZones = clickZones.length > 0;
 
   // Generate expandable ISI HTML
   let expandableHTML = ''
@@ -208,7 +225,7 @@ export function generateHTML(template, config, assets, animations) {
   }
 
   // Generate animation JS
-  const animationScript = generateAnimationJS(anims)
+  const animationScript = generateAnimationJS(anims);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -225,13 +242,14 @@ export function generateHTML(template, config, assets, animations) {
     ${hasISI ? `<link rel="stylesheet" href="css/scroller.css">` : ''}
     ${hasClickZones ? `<link rel="stylesheet" href="css/clicks.css">` : ''}
     ${hasVideo && buttonCount > 0 ? `<link rel="stylesheet" href="css/buttons.css">` : ''}
+    ${hasVideo && config.showVideoControls ? `<link rel="stylesheet" href="controls/ixr-7-controls.css">` : ''}
     ${hasExpandable ? `<link rel="stylesheet" href="css/expandable.css">` : ''}
     ${hasBgVideo ? `<link rel="stylesheet" href="css/bg-video.css">` : ''}
 </head>
 <body>
     <div id="container">
         ${!hasVideo || hasBgVideo ? `<img class="background" src="assets/background.png" width="${config.dimensions.width}px">` : ''}
-        ${hasBgVideo ? `<img id="video_pause_btn" src="assets/play-button.png" onclick="showVid();" />
+        ${hasBgVideo ? `<img id="video_pause_btn" src="${assets.playButton?.dataUrl || 'assets/play-button.png'}" onclick="showVid();" />
         <div id="video-container">
             <video id="videoId" poster="assets/thumbnail.png">
                 <source src="assets/video.mp4" type="video/mp4">
@@ -240,7 +258,9 @@ export function generateHTML(template, config, assets, animations) {
         ${framesHTML}
         ${containerZonesHTML}
         ${expandableHTML}
-        ${hasISI ? `
+        ${
+          hasISI
+            ? `
         <div id="outerMostDiv">
             <div id="innerMostDiv">
                 <div id="isi-content-wrapper">
@@ -249,63 +269,81 @@ export function generateHTML(template, config, assets, animations) {
                 </div>
             </div>
             <div id="isi-controls"></div>
+        </div>`
+            : ''
+        }
+        ${hasVideo && !hasBgVideo ? `<video id="videoId" autoplay width="100%" height="${config.videoHeight}" style="position:relative;${assets.video?.dataUrl ? '' : 'border-bottom:1px solid #808080;'}"><source src="${assets.video?.dataUrl ? 'assets/video.mp4' : ''}" type="video/mp4" /></video>` : ''}
+        ${hasButtons && buttonCount > 0 ? `<div class="buttons">
+          ${buttonsHTML}
         </div>` : ''}
-        ${hasVideo && !hasBgVideo ? `<video id="videoId" autoplay><source src="assets/video.mp4" type="video/mp4" /></video>` : ''}
-        ${buttonsHTML}
     </div>
     ${hasBgVideo ? `<script src="script/bg-video.js"><\/script>` : ''}
     <script src="script/ad.js"><\/script>
+    ${hasVideo && config.showVideoControls ? `<script src="controls/controls.js"><\/script>` : ''}
     ${hasISI ? `<script src="script/scroller.js"><\/script>` : `<!-- <script src="script/scroller.js"><\/script> -->`}
     ${hasExpandable ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"><\/script>
     <script src="script/expandCollapse.js"><\/script>` : ''}
     ${animationScript ? `<script>${animationScript}<\/script>` : ''}
+    ${hasVideo && hasButtons ? `
+        <script>
+          function pauseVid() {
+              var vid = document.getElementById("videoId");
+              vid.pause();
+          }
+        </script>
+      ` : ''}
 
 </body>
-</html>`
+</html>`;
 }
 
 /**
  * Generate ad.js (click handlers)
  */
 export function generateAdJS(config) {
-  const clickZones = config.clickZones || []
-  const globalJobId = config.jobId || ''
+  const clickZones = config.clickZones || [];
+  const globalJobId = config.jobId || '';
 
   // Generate clickTag variable declarations
-  const clickTagVars = clickZones.map((zone, i) => {
-    const varName = zone.id.replace(/[^a-zA-Z0-9]/g, '_')
-    return `    var ${varName} = "${zone.url}";`
-  }).join('\n')
+  const clickTagVars = clickZones
+    .map((zone, i) => {
+      const varName = zone.id.replace(/[^a-zA-Z0-9]/g, '_');
+      return `    var ${varName} = "${zone.url}";`;
+    })
+    .join('\n');
 
   // Generate click handlers based on link type
-  const clickHandlers = clickZones.map(zone => {
-    const varName = zone.id.replace(/[^a-zA-Z0-9]/g, '_')
-    const linkType = zone.linkType || 'url'
+  const clickHandlers = clickZones
+    .map((zone) => {
+      const varName = zone.id.replace(/[^a-zA-Z0-9]/g, '_');
+      const linkType = zone.linkType || 'url';
 
-    let handlerFn = ''
-    let comment = ''
-    if (linkType === 'url') {
-      comment = 'LINK'
-      handlerFn = `openExternalLinkFull(e, ${varName});`
-    } else if (linkType === 'pdf') {
-      comment = 'PDF'
-      handlerFn = `openExternalPDF(e, ${varName});`
-    } else if (linkType === 'mod') {
-      comment = 'MOD-INT'
-      const jobId = zone.jobId || globalJobId
-      handlerFn = `openMod("${jobId}");`
-    }
+      let handlerFn = '';
+      let comment = '';
+      if (linkType === 'url') {
+        comment = 'LINK';
+        handlerFn = `openExternalLinkFull(e, ${varName});`;
+      } else if (linkType === 'pdf') {
+        comment = 'PDF';
+        handlerFn = `openExternalPDF(e, ${varName});`;
+      } else if (linkType === 'mod') {
+        comment = 'MOD-INT';
+        const jobId = zone.jobId || globalJobId;
+        handlerFn = `openMod("${jobId}");`;
+      }
 
     // Add pauseVideo call before the link action if enabled
     if (zone.pauseVideo) {
       handlerFn = `pauseVid(); ${handlerFn}`
     }
 
-    return `        //${comment}
-        $('#${zone.id}')[0].addEventListener("click", function (e) {
+      return `        //${comment}
+        var _el_${varName} = $('#${zone.id}')[0];
+        if (_el_${varName}) _el_${varName}.addEventListener("click", function (e) {
             ${handlerFn}
-        }, false);`
-  }).join('\n')
+        }, false);`;
+    })
+    .join('\n');
 
   return `$(document).ready(function () {
 
@@ -345,21 +383,21 @@ ${clickHandlers}
 
     assignClickHandlers();
 
-});`
+});`;
 }
 
 /**
  * Generate main.css
  */
-export function generateCSS(config) {
+export function generateCSS(config, hasButtons = false) {
   return `* { margin: 0; padding: 0; box-sizing: border-box; }
 body { margin: 0; padding: 0; }
 #container { position: absolute; width: ${config.dimensions.width}px; height: ${config.dimensions.height}px; overflow: hidden; background: white;}
 .background { position: absolute; top: 0; left: 0; }
-#clickTag1 { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: pointer; }
+#clickTag1 { position: absolute; top: 0; left: 0; width: ${hasButtons ? '200px' : '100%'}; height: ${hasButtons ? '50px' : '100%'}; cursor: pointer; }
 [id^="frame"] { position: absolute; top: 0; left: 0; visibility: hidden; opacity: 0; }
 #outerMostDiv { position: absolute; bottom: 0; left: 0; width: 100%; height: 540px; background: white; overflow: hidden; }
-#innerMostDiv { position: absolute; width: 100%; overflow-y: auto; }`
+#innerMostDiv { position: absolute; width: 100%; overflow-y: auto; }`;
 }
 
 /**
@@ -464,62 +502,57 @@ export function generateScrollerCSS(config) {
 
 ::-webkit-scrollbar {
     -webkit-appearance: none;
-}`
+}`;
 }
 
 /**
  * Generate buttons.css for video templates
  */
 export function generateButtonsCSS(config) {
-  const buttonCount = config.buttonCount || 0
-  if (buttonCount === 0) return ''
+  const buttonCount = config.buttonCount || 0;
+  if (buttonCount === 0) return '';
 
-  let css = `/* Button Styles */
-.cta-button {
-    position: absolute;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-family: Arial, sans-serif;
-    font-weight: bold;
-    text-align: center;
-    transition: all 0.2s ease;
-    box-sizing: border-box;
-}
-
-.cta-button:hover {
-    opacity: 0.9;
-    transform: scale(1.02);
-}
-
-`
+  let css = '';
   // Generate CSS for each button
   for (let i = 0; i < buttonCount; i++) {
-    const btn = config.buttons[i] || {}
+    const btn = config.buttons[i] || {};
     css += `#ctaButton${i + 1} {
-    background-color: ${btn.bgColor || '#6cc04a'};
+    position: relative;
+    display: block;
+    background-color: ${btn.bgColor || '#2e8e95'};
     color: ${btn.textColor || '#ffffff'};
-    border: 2px solid ${btn.borderColor || btn.bgColor || '#6cc04a'};
-    border-radius: ${btn.borderRadius || 4}px;
-    width: ${btn.width || 200}px;
-    height: ${btn.height || 50}px;
-    top: ${btn.top || 100}px;
-    left: ${btn.left || 50}px;
-    font-size: ${Math.floor((btn.height || 50) * 0.35)}px;
+    border: 2px solid none;
+    border-radius: 16px;
+    width: ${`${btn.width}px`};
+    height: ${`${btn.height}px`};
+    top: ${btn.top}px;
+    left: ${btn.left}px;
+    font-size: 30px;
+    font-family: Roboto, sans-serif;
+    text-align: center;
+    padding: 2px;
+    margin: 6px;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
 }
-
-`
+    #ctaButton${i + 1} p {
+      margin: 30px 0;
+    }
+    .buttons {
+      position: relative;
+      top: 154px;
+    }
+`;
   }
-  return css
+  return css;
 }
 
 /**
  * Generate clicks.css for click zones
  */
 export function generateClicksCSS(config) {
-  const clickZones = config.clickZones || []
-  if (clickZones.length === 0) return ''
+  const clickZones = config.clickZones || [];
+  if (clickZones.length === 0) return '';
 
   let css = `/* Click Zone Styles */
 .click-zone {
@@ -528,9 +561,9 @@ export function generateClicksCSS(config) {
     z-index: 9999;
 }
 
-`
+`;
   // Generate CSS for each zone
-  clickZones.forEach(zone => {
+  clickZones.forEach((zone) => {
     css += `#${zone.id} {
     top: ${zone.top}px;
     left: ${zone.left}px;
@@ -538,9 +571,9 @@ export function generateClicksCSS(config) {
     height: ${zone.height}px;
 }
 
-`
-  })
-  return css
+`;
+  });
+  return css;
 }
 
 /**
@@ -851,12 +884,16 @@ export function generateBgVideoCSS(config) {
   const videoWidth = config.videoWidth ?? 876
   const videoHeight = config.videoHeight ?? 492
   const playBtnTop = config.playBtnTop ?? 432
-  const playBtnLeft = config.playBtnLeft ?? 419
-  const playBtnWidth = config.playBtnWidth ?? 146
+  const playBtnLeft = config.playBtnLeft ?? 417
+  const playBtnWidth = config.playBtnWidth ?? 150
 
   return `/* Background + Embedded Video Styles */
 div, img {
     position: absolute;
+}
+
+.background {
+    z-index: 1;
 }
 
 #video-container {

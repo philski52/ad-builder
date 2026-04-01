@@ -33,9 +33,10 @@ function ValidationReport() {
       issues.push({ type: 'warning', message: 'No animation frames uploaded' })
     }
 
-    // Check click zones
+    // Check click zones (skip for video-only templates that have no buttons)
     const zones = config.clickZones || []
-    if (zones.length === 0) {
+    const isVideoOnly = hasFeature(currentTemplate, 'video') && !hasFeature(currentTemplate, 'buttons') && !hasFeature(currentTemplate, 'background')
+    if (zones.length === 0 && !isVideoOnly) {
       issues.push({ type: 'warning', message: 'No click zones defined' })
     }
 

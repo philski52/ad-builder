@@ -1,7 +1,20 @@
-import { useMemo, useState, useEffect, useRef } from 'react'
-import { useProjectStore } from '../../stores/projectStore'
-import { hasFeature } from '../../templates'
-import { generateHTML, generateCSS, generateScrollerCSS, generateScrollerJS, generateAdJS, generateClicksCSS, generateExpandableCSS, generateExpandCollapseJS } from '../../utils/templateGenerator'
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { useProjectStore } from '../../stores/projectStore';
+import { hasFeature } from '../../templates';
+import {
+  generateHTML,
+  generateCSS,
+  generateScrollerCSS,
+  generateScrollerJS,
+  generateAdJS,
+  generateClicksCSS, generateExpandableCSS, generateExpandCollapseJS,
+  generateButtonsCSS, generateBgVideoCSS, generateBgVideoJS,
+} from '../../utils/templateGenerator';
+import controlsCss from '../../utils/controls/ixr-7-controls.css?raw';
+import controlsJs from '../../utils/controls/controls.js?raw';
+import playArrowUrl from '../../utils/controls/PlayArrowFilled.png';
+import pauseUrl from '../../utils/controls/PauseFilled.png';
+import volumeUpUrl from '../../utils/controls/VolumeUpFilled.png';
 
 function BrowserPreview({ dimensions, scale, children }) {
   const frameWidth = dimensions.width * scale + 2
@@ -16,119 +29,211 @@ function BrowserPreview({ dimensions, scale, children }) {
         {children}
       </div>
     </div>
-  )
+  );
+}
+
+function DeviceSimulator({ dimensions, scale, children }) {
+  const frameWidth = dimensions.width * scale + 52;
+  const frameHeight = dimensions.height * scale + 52;
+
+  return (
+    <div className="inline-block">
+      <div
+        className="border border-gray-300 rounded-lg overflow-hidden shadow-lg bg-white"
+        style={{ width: frameWidth, height: frameHeight }}
+      >
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function PreviewIframe() {
-  const currentTemplate = useProjectStore((state) => state.currentTemplate)
-  const config = useProjectStore((state) => state.config)
-  const assets = useProjectStore((state) => state.assets)
-  const animations = useProjectStore((state) => state.animations)
-  const updateConfig = useProjectStore((state) => state.updateConfig)
+  const currentTemplate = useProjectStore((state) => state.currentTemplate);
+  const config = useProjectStore((state) => state.config);
+  const assets = useProjectStore((state) => state.assets);
+  const animations = useProjectStore((state) => state.animations);
+  const updateConfig = useProjectStore((state) => state.updateConfig);
 
-  const [scale, setScale] = useState(0.4)
-  const [key, setKey] = useState(0)
-  const [isiSelected, setIsiSelected] = useState(false)
-  const [isDragging, setIsDragging] = useState(false)
-  const [resizeMode, setResizeMode] = useState(null)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0, isiTop: 0, isiHeight: 0, isiWidth: 0, isiLeft: 0 })
-  const [selectedZoneIndex, setSelectedZoneIndex] = useState(null)
-  const [isZoneDragging, setIsZoneDragging] = useState(false)
-  const [zoneResizeMode, setZoneResizeMode] = useState(null)
-  const [zoneDragStart, setZoneDragStart] = useState({ x: 0, y: 0, top: 0, left: 0, width: 0, height: 0 })
-  const [zoneDragOffset, setZoneDragOffset] = useState({ top: 0, left: 0, width: 0, height: 0 })
+  const hasVideo = hasFeature(currentTemplate, 'video');
 
-  const containerRef = useRef(null)
-  const iframeRef = useRef(null)
-  const isiScrollPosRef = useRef(0)
+  const [scale, setScale] = useState(0.4);
+  const [key, setKey] = useState(0);
+  const [isiSelected, setIsiSelected] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [resizeMode, setResizeMode] = useState(null);
+  const [dragStart, setDragStart] = useState({
+    x: 0,
+    y: 0,
+    isiTop: 0,
+    isiHeight: 0,
+    isiWidth: 0,
+    isiLeft: 0,
+  });
+  const [selectedZoneIndex, setSelectedZoneIndex] = useState(null);
+  const [isZoneDragging, setIsZoneDragging] = useState(false);
+  const [zoneResizeMode, setZoneResizeMode] = useState(null);
+  const [zoneDragStart, setZoneDragStart] = useState({
+    x: 0,
+    y: 0,
+    top: 0,
+    left: 0,
+    width: 0,
+    height: 0,
+  });
+  const [zoneDragOffset, setZoneDragOffset] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+    height: 0,
+  });
+
+  const containerRef = useRef(null);
+  const iframeRef = useRef(null);
+  const isiScrollPosRef = useRef(0);
 
   // Handle ISI zone position updates from iframe
   useEffect(() => {
     const handleMessage = (e) => {
       if (e.data && e.data.type === 'zonePositionUpdate') {
-        const { zoneIndex, top, left, width, height } = e.data
-        const zones = config.clickZones || []
+        const { zoneIndex, top, left, width, height } = e.data;
+        const zones = config.clickZones || [];
         if (zones[zoneIndex]) {
           try {
-            const iframe = iframeRef.current
+            const iframe = iframeRef.current;
             if (iframe && iframe.contentWindow) {
-              const innerDiv = iframe.contentWindow.document.getElementById('innerMostDiv')
+              const innerDiv =
+                iframe.contentWindow.document.getElementById('innerMostDiv');
               if (innerDiv) {
-                isiScrollPosRef.current = innerDiv.scrollTop
+                isiScrollPosRef.current = innerDiv.scrollTop;
               }
             }
-          } catch (err) { /* ignore cross-origin errors */ }
+          } catch (err) {
+            /* ignore cross-origin errors */
+          }
 
-          const newZones = [...zones]
+          const newZones = [...zones];
           newZones[zoneIndex] = {
             ...newZones[zoneIndex],
             top: Math.round(top),
             left: Math.round(left),
             ...(width !== undefined && { width: Math.round(width) }),
-            ...(height !== undefined && { height: Math.round(height) })
-          }
-          updateConfig('clickZones', newZones)
+            ...(height !== undefined && { height: Math.round(height) }),
+          };
+          updateConfig('clickZones', newZones);
         }
       }
-    }
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [config.clickZones, updateConfig])
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [config.clickZones, updateConfig]);
 
   // Restore scroll position after config updates
   const handleIframeLoad = () => {
     if (isiScrollPosRef.current > 0 && iframeRef.current) {
       setTimeout(() => {
         try {
-          const innerDiv = iframeRef.current.contentWindow.document.getElementById('innerMostDiv')
+          const innerDiv =
+            iframeRef.current.contentWindow.document.getElementById(
+              'innerMostDiv',
+            );
           if (innerDiv) {
-            innerDiv.scrollTop = isiScrollPosRef.current
+            innerDiv.scrollTop = isiScrollPosRef.current;
           }
-        } catch (err) { /* ignore */ }
-      }, 100)
+        } catch (err) {
+          /* ignore */
+        }
+      }, 100);
     }
-  }
+  };
 
   const previewHTML = useMemo(() => {
-    if (!currentTemplate) return ''
+    if (!currentTemplate) return '';
 
-    const hasISI = hasFeature(currentTemplate, 'isi')
+    const hasISI = hasFeature(currentTemplate, 'isi');
     const hasExpandable = hasFeature(currentTemplate, 'expandable') && config.expandableEnabled
-    let html = generateHTML(currentTemplate, config, assets, animations)
-    const css = generateCSS(config)
-    const scrollerCss = hasISI ? generateScrollerCSS(config) : ''
-    const scrollerJs = generateScrollerJS(config)
-    const adJs = generateAdJS(config)
-    const clicksCss = generateClicksCSS(config)
+    const hasVideo = hasFeature(currentTemplate, 'video');
+    const hasBackground = hasFeature(currentTemplate, 'background');
+    const hasButtons = hasVideo && !hasBackground && hasFeature(currentTemplate, 'buttons') && config.buttonCount > 0;
+    let html = generateHTML(currentTemplate, config, assets, animations);
+    const css = generateCSS(config, hasButtons);
+    const scrollerCss = hasISI ? generateScrollerCSS(config) : '';
+    const scrollerJs = generateScrollerJS(config);
+    const adJs = generateAdJS(config);
+    const clicksCss = generateClicksCSS(config);
+    const buttonCss = generateButtonsCSS(config);
+  
     const expandableCss = hasExpandable ? generateExpandableCSS(config) : ''
     const expandCollapseJs = hasExpandable ? generateExpandCollapseJS(config) : ''
+    const hasBgVideo = hasVideo && hasBackground;
+    const bgVideoCss = hasBgVideo ? generateBgVideoCSS(config) : '';
+    const bgVideoJs = hasBgVideo ? generateBgVideoJS(config) : '';
 
     // Inline CSS
-    html = html.replace('<link rel="stylesheet" href="css/main.css">', `<style>${css}\n${scrollerCss}\n${clicksCss}\n${expandableCss}</style>`)
-    html = html.replace(/<link rel="stylesheet" href="css\/[^"]+\.css">/g, '')
+    html = html.replace(
+      '<link rel="stylesheet" href="css/main.css">',
+      `<style>${css}\n${scrollerCss}\n${clicksCss}\n${expandableCss}\n${buttonCss}\n${bgVideoCss}</style>`,
+    );
+    html = html.replace(/<link rel="stylesheet" href="css\/[^"]+\.css">/g, '');
+
+    // Inline controls CSS when hasVideo
+    if (hasVideo) {
+      html = html.replace(
+        '<link rel="stylesheet" href="controls/ixr-7-controls.css">',
+        `<style>${controlsCss}</style>`,
+      );
+    }
 
     // Inline ad.js
-    html = html.replace('<script src="script/ad.js"></script>', `<script>${adJs}</script>`)
+    html = html.replace(
+      '<script src="script/ad.js"></script>',
+      `<script>${adJs}</script>`,
+    );
 
     // Inline scroller.js
     html = html.replace('<script src="script/scroller.js"></script>', `<script>${scrollerJs}</script>`)
 
     // Inline expandCollapse.js for expandable templates
     if (hasExpandable) {
-      html = html.replace('<script src="script/expandCollapse.js"></script>', `<script>${expandCollapseJs}</script>`)
+      html = html.replace(
+        '<script src="script/expandCollapse.js"></script>',
+        `<script>${expandCollapseJs}</script>`,
+      );
+    }
+
+    // Inline controls.js when hasVideo, with images replaced by data URLs
+    if (hasVideo) {
+      const inlinedControlsJs = controlsJs
+        .replace('controls/PlayArrowFilled.png', playArrowUrl)
+        .replace('controls/PauseFilled.png', pauseUrl)
+        .replace('controls/VolumeUpFilled.png', volumeUpUrl);
+      html = html.replace(
+        '<script src="controls/controls.js"></script>',
+        `<script>${inlinedControlsJs}</script>`,
+      );
+    }
+
+    // Inline bg-video.js
+    if (hasBgVideo) {
+      html = html.replace(
+        '<script src="script/bg-video.js"></script>',
+        `<script>${bgVideoJs}</script>`,
+      );
     }
 
     // Remove external script refs
-    html = html.replace(/<script src="script\/[^"]+\.js"><\/script>/g, '')
-    html = html.replace(/<script src="controls\/[^"]+\.js"><\/script>/g, '')
+    html = html.replace(/<script src="script\/[^"]+\.js"><\/script>/g, '');
+    html = html.replace(/<script src="controls\/[^"]+\.js"><\/script>/g, '');
 
     // Add ISI zone indicators with drag/resize script
-    const hasISIZones = hasISI && (config.clickZones || []).some(z => z.inISI)
+    const hasISIZones =
+      hasISI && (config.clickZones || []).some((z) => z.inISI);
     if (hasISIZones) {
-      const isiZones = (config.clickZones || []).filter(z => z.inISI)
-      const zoneIndicatorsHTML = isiZones.map((z, i) => {
-        const actualIndex = (config.clickZones || []).indexOf(z)
-        return `<div class="zone-indicator in-isi" data-zone-index="${actualIndex}"
+      const isiZones = (config.clickZones || []).filter((z) => z.inISI);
+      const zoneIndicatorsHTML = isiZones
+        .map((z, i) => {
+          const actualIndex = (config.clickZones || []).indexOf(z);
+          return `<div class="zone-indicator in-isi" data-zone-index="${actualIndex}"
           style="position:absolute; top:${z.top}px; left:${z.left}px; width:${z.width}px; height:${z.height}px;
                  border:2px dashed rgba(16,185,129,0.8); background:rgba(16,185,129,0.1);
                  box-sizing:border-box; cursor:grab; z-index:100; transition: none;">
@@ -142,15 +247,16 @@ function PreviewIframe() {
           <div class="resize-handle" data-resize="left" style="position:absolute; top:0; left:-4px; width:8px; height:100%; cursor:ew-resize;"></div>
           <div class="resize-handle" data-resize="top" style="position:absolute; top:-4px; left:0; width:100%; height:8px; cursor:ns-resize;"></div>
           <div class="resize-handle" data-resize="bottom-right" style="position:absolute; bottom:-4px; right:-4px; width:12px; height:12px; cursor:nwse-resize; background:#10b981; border-radius:2px;"></div>
-        </div>`
-      }).join('')
+        </div>`;
+        })
+        .join('');
 
       // Insert zone indicators inside #isi-content-wrapper (before its closing tag)
       // so they scroll with the ISI content
       html = html.replace(
         '</div>\n            </div>\n            <div id="isi-controls">',
-        `${zoneIndicatorsHTML}</div>\n            </div>\n            <div id="isi-controls">`
-      )
+        `${zoneIndicatorsHTML}</div>\n            </div>\n            <div id="isi-controls">`,
+      );
 
       // Add drag/resize script for ISI zones
       const dragScript = `<script>
@@ -290,26 +396,38 @@ function PreviewIframe() {
             autoScrollOffset = 0;
           });
         })();
-      <\/script>`
-      html = html.replace('</body>', dragScript + '</body>')
+      <\/script>`;
+      html = html.replace('</body>', dragScript + '</body>');
     }
 
     // Replace asset paths with data URLs
     if (assets.background?.dataUrl) {
-      html = html.replace('src="assets/background.png"', `src="${assets.background.dataUrl}"`)
+      html = html.replace(
+        'src="assets/background.png"',
+        `src="${assets.background.dataUrl}"`,
+      );
     }
     if (assets.isiImage?.dataUrl) {
-      html = html.replace('src="assets/isi.png"', `src="${assets.isiImage.dataUrl}"`)
+      html = html.replace(
+        'src="assets/isi.png"',
+        `src="${assets.isiImage.dataUrl}"`,
+      );
     }
     if (assets.video?.dataUrl) {
-      html = html.replace('src="assets/video.mp4"', `src="${assets.video.dataUrl}"`)
+      html = html.replace(
+        'src="assets/video.mp4"',
+        `src="${assets.video.dataUrl}"`,
+      );
     }
     if (assets.frames) {
       assets.frames.forEach((frame, i) => {
         if (frame?.dataUrl) {
-          html = html.replace(`src="assets/frame${i + 1}.png"`, `src="${frame.dataUrl}"`)
+          html = html.replace(
+            `src="assets/frame${i + 1}.png"`,
+            `src="${frame.dataUrl}"`,
+          );
         }
-      })
+      });
     }
     if (assets.expandButtonImage?.dataUrl) {
       html = html.replace('src="assets/expand-button.png"', `src="${assets.expandButtonImage.dataUrl}"`)
@@ -318,194 +436,259 @@ function PreviewIframe() {
       html = html.replace('src="assets/collapse-button.png"', `src="${assets.collapseButtonImage.dataUrl}"`)
     }
 
-    return html
-  }, [currentTemplate, config, assets, animations])
+    return html;
+  }, [currentTemplate, config, assets, animations]);
 
   if (!currentTemplate) {
-    return <div className="text-gray-400 text-center p-8">Select a template</div>
+    return (
+      <div className="text-gray-400 text-center p-8">Select a template</div>
+    );
   }
 
-  const hasISI = hasFeature(currentTemplate, 'isi')
+  const hasISI = hasFeature(currentTemplate, 'isi');
 
   const handleIsiMouseDown = (e, mode) => {
-    e.stopPropagation()
-    setIsiSelected(true)
+    e.stopPropagation();
+    if (iframeRef.current) iframeRef.current.style.pointerEvents = 'none';
+    setIsiSelected(true);
     setDragStart({
       x: e.clientX,
       y: e.clientY,
       isiTop: config.isiTop,
       isiHeight: config.isiHeight,
       isiWidth: config.isiWidth || config.dimensions.width,
-      isiLeft: config.isiLeft || 0
-    })
+      isiLeft: config.isiLeft || 0,
+    });
     if (mode === 'move') {
-      setIsDragging(true)
+      setIsDragging(true);
     } else {
-      setResizeMode(mode)
+      setResizeMode(mode);
     }
-  }
+  };
 
   const handleMouseMove = (e) => {
-    if (!isDragging && !resizeMode) return
-    const deltaX = (e.clientX - dragStart.x) / scale
-    const deltaY = (e.clientY - dragStart.y) / scale
+    if (!isDragging && !resizeMode) return;
+    const deltaX = (e.clientX - dragStart.x) / scale;
+    const deltaY = (e.clientY - dragStart.y) / scale;
 
     if (isDragging) {
-      const newTop = Math.max(0, Math.min(config.dimensions.height - dragStart.isiHeight, dragStart.isiTop + deltaY))
-      const newLeft = Math.max(0, Math.min(config.dimensions.width - dragStart.isiWidth, dragStart.isiLeft + deltaX))
-      updateConfig('isiTop', Math.round(newTop))
-      updateConfig('isiLeft', Math.round(newLeft))
+      const newTop = Math.max(
+        0,
+        Math.min(
+          config.dimensions.height - dragStart.isiHeight,
+          dragStart.isiTop + deltaY,
+        ),
+      );
+      const newLeft = Math.max(
+        0,
+        Math.min(
+          config.dimensions.width - dragStart.isiWidth,
+          dragStart.isiLeft + deltaX,
+        ),
+      );
+      updateConfig('isiTop', Math.round(newTop));
+      updateConfig('isiLeft', Math.round(newLeft));
     } else if (resizeMode === 'top') {
-      const newTop = Math.max(0, dragStart.isiTop + deltaY)
-      const newHeight = Math.max(100, dragStart.isiHeight - deltaY)
+      const newTop = Math.max(0, dragStart.isiTop + deltaY);
+      const newHeight = Math.max(100, dragStart.isiHeight - deltaY);
       if (newTop >= 0 && newTop + newHeight <= config.dimensions.height) {
-        updateConfig('isiTop', Math.round(newTop))
-        updateConfig('isiHeight', Math.round(newHeight))
+        updateConfig('isiTop', Math.round(newTop));
+        updateConfig('isiHeight', Math.round(newHeight));
       }
     } else if (resizeMode === 'bottom') {
-      const newHeight = Math.max(100, dragStart.isiHeight + deltaY)
+      const newHeight = Math.max(100, dragStart.isiHeight + deltaY);
       if (dragStart.isiTop + newHeight <= config.dimensions.height) {
-        updateConfig('isiHeight', Math.round(newHeight))
+        updateConfig('isiHeight', Math.round(newHeight));
       }
     } else if (resizeMode === 'left') {
-      const newLeft = Math.max(0, dragStart.isiLeft + deltaX)
-      const newWidth = Math.max(100, dragStart.isiWidth - deltaX)
+      const newLeft = Math.max(0, dragStart.isiLeft + deltaX);
+      const newWidth = Math.max(100, dragStart.isiWidth - deltaX);
       if (newLeft >= 0 && newLeft + newWidth <= config.dimensions.width) {
-        updateConfig('isiLeft', Math.round(newLeft))
-        updateConfig('isiWidth', Math.round(newWidth))
+        updateConfig('isiLeft', Math.round(newLeft));
+        updateConfig('isiWidth', Math.round(newWidth));
       }
     } else if (resizeMode === 'right') {
-      const newWidth = Math.max(100, dragStart.isiWidth + deltaX)
+      const newWidth = Math.max(100, dragStart.isiWidth + deltaX);
       if (dragStart.isiLeft + newWidth <= config.dimensions.width) {
-        updateConfig('isiWidth', Math.round(newWidth))
+        updateConfig('isiWidth', Math.round(newWidth));
       }
     }
-  }
+  };
 
   const handleMouseUp = () => {
-    setIsDragging(false)
-    setResizeMode(null)
-  }
+    setIsDragging(false);
+    setResizeMode(null);
+  };
 
   const handleOverlayClick = (e) => {
     if (e.target === e.currentTarget) {
-      setIsiSelected(false)
-      setSelectedZoneIndex(null)
+      setIsiSelected(false);
+      setSelectedZoneIndex(null);
     }
-  }
+  };
 
   // Click zone handlers for non-ISI zones
   const handleZoneMouseDown = (e, index, mode) => {
-    e.stopPropagation()
-    const zones = config.clickZones || []
-    if (!zones[index]) return
-    setSelectedZoneIndex(index)
-    setIsiSelected(false)
-    const zone = zones[index]
+    e.stopPropagation();
+    const zones = config.clickZones || [];
+    if (!zones[index]) return;
+    // Immediately disable iframe so mouseup can't escape to it before React re-renders
+    if (iframeRef.current) iframeRef.current.style.pointerEvents = 'none';
+    setSelectedZoneIndex(index);
+    setIsiSelected(false);
+    const zone = zones[index];
     setZoneDragStart({
       x: e.clientX,
       y: e.clientY,
       top: zone.top,
       left: zone.left,
       width: zone.width,
-      height: zone.height
-    })
-    setZoneDragOffset({ top: 0, left: 0, width: 0, height: 0 })
+      height: zone.height,
+    });
+    setZoneDragOffset({ top: 0, left: 0, width: 0, height: 0 });
     if (mode === 'move') {
-      setIsZoneDragging(true)
+      setIsZoneDragging(true);
     } else {
-      setZoneResizeMode(mode)
+      setZoneResizeMode(mode);
     }
-  }
+  };
 
   const handleZoneMouseMove = (e) => {
-    if (!isZoneDragging && !zoneResizeMode) return
-    if (selectedZoneIndex === null) return
-    const zones = config.clickZones || []
-    if (!zones[selectedZoneIndex]) return
+    if (!isZoneDragging && !zoneResizeMode) return;
+    if (selectedZoneIndex === null) return;
+    const zones = config.clickZones || [];
+    if (!zones[selectedZoneIndex]) return;
 
-    const deltaX = (e.clientX - zoneDragStart.x) / scale
-    const deltaY = (e.clientY - zoneDragStart.y) / scale
-    const zone = zones[selectedZoneIndex]
-    const maxWidth = zone.inISI ? (config.isiWidth || config.dimensions.width) : config.dimensions.width
-    const maxHeight = zone.inISI ? 5000 : config.dimensions.height
+    const deltaX = (e.clientX - zoneDragStart.x) / scale;
+    const deltaY = (e.clientY - zoneDragStart.y) / scale;
+    const zone = zones[selectedZoneIndex];
+    const maxWidth = zone.inISI
+      ? config.isiWidth || config.dimensions.width
+      : config.dimensions.width;
+    const maxHeight = zone.inISI ? 5000 : config.dimensions.height;
 
-    let offset = { top: 0, left: 0, width: 0, height: 0 }
+    let offset = { top: 0, left: 0, width: 0, height: 0 };
 
     if (isZoneDragging) {
-      const newTop = Math.max(0, Math.min(maxHeight - zoneDragStart.height, zoneDragStart.top + deltaY))
-      const newLeft = Math.max(0, Math.min(maxWidth - zoneDragStart.width, zoneDragStart.left + deltaX))
-      offset = { top: newTop - zoneDragStart.top, left: newLeft - zoneDragStart.left, width: 0, height: 0 }
+      const newTop = Math.max(
+        0,
+        Math.min(maxHeight - zoneDragStart.height, zoneDragStart.top + deltaY),
+      );
+      const newLeft = Math.max(
+        0,
+        Math.min(maxWidth - zoneDragStart.width, zoneDragStart.left + deltaX),
+      );
+      offset = {
+        top: newTop - zoneDragStart.top,
+        left: newLeft - zoneDragStart.left,
+        width: 0,
+        height: 0,
+      };
     } else if (zoneResizeMode === 'top') {
-      const newTop = Math.max(0, zoneDragStart.top + deltaY)
-      const newHeight = Math.max(20, zoneDragStart.height - deltaY)
+      const newTop = Math.max(0, zoneDragStart.top + deltaY);
+      const newHeight = Math.max(20, zoneDragStart.height - deltaY);
       if (newTop >= 0 && newTop + newHeight <= maxHeight) {
-        offset = { top: newTop - zoneDragStart.top, left: 0, width: 0, height: newHeight - zoneDragStart.height }
+        offset = {
+          top: newTop - zoneDragStart.top,
+          left: 0,
+          width: 0,
+          height: newHeight - zoneDragStart.height,
+        };
       }
     } else if (zoneResizeMode === 'bottom') {
-      const newHeight = Math.max(20, zoneDragStart.height + deltaY)
+      const newHeight = Math.max(20, zoneDragStart.height + deltaY);
       if (zoneDragStart.top + newHeight <= maxHeight) {
-        offset = { top: 0, left: 0, width: 0, height: newHeight - zoneDragStart.height }
+        offset = {
+          top: 0,
+          left: 0,
+          width: 0,
+          height: newHeight - zoneDragStart.height,
+        };
       }
     } else if (zoneResizeMode === 'left') {
-      const newLeft = Math.max(0, zoneDragStart.left + deltaX)
-      const newWidth = Math.max(20, zoneDragStart.width - deltaX)
+      const newLeft = Math.max(0, zoneDragStart.left + deltaX);
+      const newWidth = Math.max(20, zoneDragStart.width - deltaX);
       if (newLeft >= 0 && newLeft + newWidth <= maxWidth) {
-        offset = { top: 0, left: newLeft - zoneDragStart.left, width: newWidth - zoneDragStart.width, height: 0 }
+        offset = {
+          top: 0,
+          left: newLeft - zoneDragStart.left,
+          width: newWidth - zoneDragStart.width,
+          height: 0,
+        };
       }
     } else if (zoneResizeMode === 'right') {
-      const newWidth = Math.max(20, zoneDragStart.width + deltaX)
+      const newWidth = Math.max(20, zoneDragStart.width + deltaX);
       if (zoneDragStart.left + newWidth <= maxWidth) {
-        offset = { top: 0, left: 0, width: newWidth - zoneDragStart.width, height: 0 }
+        offset = {
+          top: 0,
+          left: 0,
+          width: newWidth - zoneDragStart.width,
+          height: 0,
+        };
       }
     }
 
-    setZoneDragOffset(offset)
-  }
+    setZoneDragOffset(offset);
+  };
 
   const handleZoneMouseUp = () => {
     if ((isZoneDragging || zoneResizeMode) && selectedZoneIndex !== null) {
-      const zones = config.clickZones || []
+      const zones = config.clickZones || [];
       if (zones[selectedZoneIndex]) {
-        const zone = zones[selectedZoneIndex]
-        const newZones = [...zones]
+        const zone = zones[selectedZoneIndex];
+        const newZones = [...zones];
         newZones[selectedZoneIndex] = {
           ...zone,
           top: Math.round(zone.top + zoneDragOffset.top),
           left: Math.round(zone.left + zoneDragOffset.left),
           width: Math.round(zone.width + zoneDragOffset.width),
-          height: Math.round(zone.height + zoneDragOffset.height)
-        }
-        updateConfig('clickZones', newZones)
+          height: Math.round(zone.height + zoneDragOffset.height),
+        };
+        updateConfig('clickZones', newZones);
       }
     }
-    setIsZoneDragging(false)
-    setZoneResizeMode(null)
-    setZoneDragOffset({ top: 0, left: 0, width: 0, height: 0 })
-  }
+    setIsZoneDragging(false);
+    setZoneResizeMode(null);
+    setZoneDragOffset({ top: 0, left: 0, width: 0, height: 0 });
+  };
 
   const handleCombinedMouseMove = (e) => {
-    handleMouseMove(e)
-    handleZoneMouseMove(e)
-  }
+    handleMouseMove(e);
+    handleZoneMouseMove(e);
+  };
 
   const handleCombinedMouseUp = () => {
-    handleMouseUp()
-    handleZoneMouseUp()
-  }
+    handleMouseUp();
+    handleZoneMouseUp();
+    // Restore iframe pointer events (React state will re-apply if still needed)
+    if (iframeRef.current) iframeRef.current.style.pointerEvents = '';
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4 flex-wrap">
         <span className="text-sm text-gray-600">Scale:</span>
-        <input type="range" min="0.2" max="1" step="0.1" value={scale} onChange={e => setScale(parseFloat(e.target.value))} className="w-32" />
-        <span className="text-sm text-gray-500">{Math.round(scale * 100)}%</span>
+        <input
+          type="range"
+          min="0.2"
+          max="1"
+          step="0.1"
+          value={scale}
+          onChange={(e) => setScale(parseFloat(e.target.value))}
+          className="w-32"
+        />
+        <span className="text-sm text-gray-500">
+          {Math.round(scale * 100)}%
+        </span>
         {hasISI && (
           <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
             ISI zones: drag in preview, auto-scrolls at edges
           </span>
         )}
-        <button onClick={() => setKey(k => k + 1)} className="ml-auto text-sm text-blue-600 hover:text-blue-800">
+        <button
+          onClick={() => setKey((k) => k + 1)}
+          className="ml-auto text-sm text-blue-600 hover:text-blue-800"
+        >
           Refresh Preview
         </button>
       </div>
@@ -518,7 +701,7 @@ function PreviewIframe() {
             height: config.dimensions.height * scale,
             overflow: 'hidden',
             background: 'white',
-            position: 'relative'
+            position: 'relative',
           }}
           onMouseMove={handleCombinedMouseMove}
           onMouseUp={handleCombinedMouseUp}
@@ -536,7 +719,10 @@ function PreviewIframe() {
               transform: `scale(${scale})`,
               transformOrigin: 'top left',
               border: 'none',
-              pointerEvents: (isDragging || resizeMode || isZoneDragging || zoneResizeMode) ? 'none' : 'auto'
+              pointerEvents:
+                isDragging || resizeMode || isZoneDragging || zoneResizeMode || selectedZoneIndex !== null || isiSelected
+                  ? 'none'
+                  : 'auto',
             }}
             title="Preview"
           />
@@ -550,16 +736,23 @@ function PreviewIframe() {
                 top: config.isiTop * scale,
                 width: (config.isiWidth || config.dimensions.width) * scale,
                 height: config.isiHeight * scale,
-                border: isiSelected ? '2px solid #3b82f6' : '2px dashed rgba(59, 130, 246, 0.5)',
+                border: isiSelected
+                  ? '2px solid #3b82f6'
+                  : '2px dashed rgba(59, 130, 246, 0.5)',
                 backgroundColor: 'transparent',
                 boxSizing: 'border-box',
                 pointerEvents: 'none',
-                transition: (isDragging || resizeMode) ? 'none' : 'all 0.15s ease'
+                transition:
+                  isDragging || resizeMode ? 'none' : 'all 0.15s ease',
               }}
             >
               {/* Move handle */}
               <div
-                onClick={(e) => { e.stopPropagation(); setIsiSelected(true); setSelectedZoneIndex(null); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsiSelected(true);
+                  setSelectedZoneIndex(null);
+                }}
                 onMouseDown={(e) => handleIsiMouseDown(e, 'move')}
                 style={{
                   position: 'absolute',
@@ -567,7 +760,9 @@ function PreviewIframe() {
                   left: 4,
                   width: 28,
                   height: 28,
-                  backgroundColor: isiSelected ? '#3b82f6' : 'rgba(59, 130, 246, 0.8)',
+                  backgroundColor: isiSelected
+                    ? '#3b82f6'
+                    : 'rgba(59, 130, 246, 0.8)',
                   borderRadius: 4,
                   cursor: isDragging ? 'grabbing' : 'grab',
                   pointerEvents: 'auto',
@@ -577,7 +772,7 @@ function PreviewIframe() {
                   color: 'white',
                   fontSize: 14,
                   fontWeight: 'bold',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
                 }}
                 title="Drag to move ISI container"
               >
@@ -587,122 +782,278 @@ function PreviewIframe() {
               {/* Resize handles when selected */}
               {isiSelected && (
                 <>
-                  <div onMouseDown={(e) => handleIsiMouseDown(e, 'top')} style={{ position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)', width: 40, height: 8, backgroundColor: '#3b82f6', borderRadius: 4, cursor: 'ns-resize', pointerEvents: 'auto' }} />
-                  <div onMouseDown={(e) => handleIsiMouseDown(e, 'bottom')} style={{ position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)', width: 40, height: 8, backgroundColor: '#3b82f6', borderRadius: 4, cursor: 'ns-resize', pointerEvents: 'auto' }} />
-                  <div onMouseDown={(e) => handleIsiMouseDown(e, 'left')} style={{ position: 'absolute', left: -4, top: '50%', transform: 'translateY(-50%)', width: 8, height: 40, backgroundColor: '#3b82f6', borderRadius: 4, cursor: 'ew-resize', pointerEvents: 'auto' }} />
-                  <div onMouseDown={(e) => handleIsiMouseDown(e, 'right')} style={{ position: 'absolute', right: -4, top: '50%', transform: 'translateY(-50%)', width: 8, height: 40, backgroundColor: '#3b82f6', borderRadius: 4, cursor: 'ew-resize', pointerEvents: 'auto' }} />
-                  <div style={{ position: 'absolute', top: 8, left: 38, backgroundColor: '#3b82f6', color: 'white', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 'bold', pointerEvents: 'none' }}>
+                  <div
+                    onMouseDown={(e) => handleIsiMouseDown(e, 'top')}
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 40,
+                      height: 8,
+                      backgroundColor: '#3b82f6',
+                      borderRadius: 4,
+                      cursor: 'ns-resize',
+                      pointerEvents: 'auto',
+                    }}
+                  />
+                  <div
+                    onMouseDown={(e) => handleIsiMouseDown(e, 'bottom')}
+                    style={{
+                      position: 'absolute',
+                      bottom: -4,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 40,
+                      height: 8,
+                      backgroundColor: '#3b82f6',
+                      borderRadius: 4,
+                      cursor: 'ns-resize',
+                      pointerEvents: 'auto',
+                    }}
+                  />
+                  <div
+                    onMouseDown={(e) => handleIsiMouseDown(e, 'left')}
+                    style={{
+                      position: 'absolute',
+                      left: -4,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: 8,
+                      height: 40,
+                      backgroundColor: '#3b82f6',
+                      borderRadius: 4,
+                      cursor: 'ew-resize',
+                      pointerEvents: 'auto',
+                    }}
+                  />
+                  <div
+                    onMouseDown={(e) => handleIsiMouseDown(e, 'right')}
+                    style={{
+                      position: 'absolute',
+                      right: -4,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: 8,
+                      height: 40,
+                      backgroundColor: '#3b82f6',
+                      borderRadius: 4,
+                      cursor: 'ew-resize',
+                      pointerEvents: 'auto',
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      left: 38,
+                      backgroundColor: '#3b82f6',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 'bold',
+                      pointerEvents: 'none',
+                    }}
+                  >
                     ISI Container
                   </div>
-                  <div style={{ position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.7)', color: 'white', padding: '2px 6px', borderRadius: 4, fontSize: 10, pointerEvents: 'none' }}>
-                    {config.isiWidth || config.dimensions.width}x{config.isiHeight} @ ({config.isiLeft || 0}, {config.isiTop})
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: 8,
+                      right: 8,
+                      backgroundColor: 'rgba(0,0,0,0.7)',
+                      color: 'white',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      fontSize: 10,
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {config.isiWidth || config.dimensions.width}x
+                    {config.isiHeight} @ ({config.isiLeft || 0}, {config.isiTop}
+                    )
                   </div>
                 </>
               )}
             </div>
           )}
 
-          {/* Non-ISI Click Zone Overlays */}
-          {(config.clickZones || []).filter(z => !z.inISI).map((zone, idx) => {
-            const actualIndex = (config.clickZones || []).indexOf(zone)
-            const isBeingDragged = (isZoneDragging || zoneResizeMode) && selectedZoneIndex === actualIndex
-            const effectiveTop = zone.top + (isBeingDragged ? zoneDragOffset.top : 0)
-            const effectiveLeft = zone.left + (isBeingDragged ? zoneDragOffset.left : 0)
-            const effectiveWidth = zone.width + (isBeingDragged ? zoneDragOffset.width : 0)
-            const effectiveHeight = zone.height + (isBeingDragged ? zoneDragOffset.height : 0)
-            const isSelected = selectedZoneIndex === actualIndex
-            const baseColor = '#f59e0b'
+          {/* Click Zone Overlays */}
+          {(config.clickZones || [])
+            .map((zone) => {
+              const actualIndex = (config.clickZones || []).indexOf(zone);
+              const isBeingDragged =
+                (isZoneDragging || zoneResizeMode) &&
+                selectedZoneIndex === actualIndex;
+              const isiTopOffset = zone.inISI ? (config.isiTop || 0) : 0;
+              const isiLeftOffset = zone.inISI ? (config.isiLeft || 0) : 0;
+              const effectiveTop =
+                isiTopOffset + zone.top + (isBeingDragged ? zoneDragOffset.top : 0);
+              const effectiveLeft =
+                isiLeftOffset + zone.left + (isBeingDragged ? zoneDragOffset.left : 0);
+              const effectiveWidth =
+                zone.width + (isBeingDragged ? zoneDragOffset.width : 0);
+              const effectiveHeight =
+                zone.height + (isBeingDragged ? zoneDragOffset.height : 0);
+              const isSelected = selectedZoneIndex === actualIndex;
+              const baseColor = '#f59e0b';
 
-            return (
-              <div
-                key={zone.id}
-                style={{
-                  position: 'absolute',
-                  left: effectiveLeft * scale,
-                  top: effectiveTop * scale,
-                  width: effectiveWidth * scale,
-                  height: effectiveHeight * scale,
-                  border: isSelected ? `2px solid ${baseColor}` : `2px dashed ${baseColor}`,
-                  backgroundColor: 'transparent',
-                  boxSizing: 'border-box',
-                  pointerEvents: 'none',
-                  transition: (isZoneDragging || zoneResizeMode) ? 'none' : 'all 0.15s ease'
-                }}
-              >
+              return (
                 <div
-                  onClick={(e) => { e.stopPropagation(); setSelectedZoneIndex(actualIndex); setIsiSelected(false); }}
-                  onMouseDown={(e) => handleZoneMouseDown(e, actualIndex, 'move')}
+                  key={zone.id}
                   style={{
                     position: 'absolute',
-                    top: 2,
-                    left: 2,
-                    backgroundColor: baseColor,
-                    color: 'white',
-                    padding: '2px 6px',
-                    borderRadius: 3,
-                    fontSize: 9,
-                    fontWeight: 'bold',
-                    whiteSpace: 'nowrap',
-                    pointerEvents: 'auto',
-                    cursor: isZoneDragging && selectedZoneIndex === actualIndex ? 'grabbing' : 'grab',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                    left: effectiveLeft * scale,
+                    top: effectiveTop * scale,
+                    width: effectiveWidth * scale,
+                    height: effectiveHeight * scale,
+                    border: isSelected
+                      ? `2px solid ${baseColor}`
+                      : `2px dashed ${baseColor}`,
+                    backgroundColor: 'transparent',
+                    boxSizing: 'border-box',
+                    pointerEvents: 'none',
+                    transition:
+                      isZoneDragging || zoneResizeMode
+                        ? 'none'
+                        : 'all 0.15s ease',
                   }}
-                  title="Drag to move zone"
                 >
-                  ⊞ {zone.id}
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedZoneIndex(actualIndex);
+                      setIsiSelected(false);
+                    }}
+                    onMouseDown={(e) =>
+                      handleZoneMouseDown(e, actualIndex, 'move')
+                    }
+                    style={{
+                      position: 'absolute',
+                      top: 2,
+                      left: 2,
+                      backgroundColor: baseColor,
+                      color: 'white',
+                      padding: '2px 6px',
+                      borderRadius: 3,
+                      fontSize: 9,
+                      fontWeight: 'bold',
+                      whiteSpace: 'nowrap',
+                      pointerEvents: 'auto',
+                      cursor:
+                        isZoneDragging && selectedZoneIndex === actualIndex
+                          ? 'grabbing'
+                          : 'grab',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                    }}
+                    title="Drag to move zone"
+                  >
+                    ⊞ {zone.id}
+                  </div>
+
+                  {isSelected && (
+                    <>
+                      <div
+                        onMouseDown={(e) =>
+                          handleZoneMouseDown(e, actualIndex, 'top')
+                        }
+                        style={{
+                          position: 'absolute',
+                          top: -4,
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: 30,
+                          height: 8,
+                          backgroundColor: baseColor,
+                          borderRadius: 4,
+                          cursor: 'ns-resize',
+                          pointerEvents: 'auto',
+                        }}
+                      />
+                      <div
+                        onMouseDown={(e) =>
+                          handleZoneMouseDown(e, actualIndex, 'bottom')
+                        }
+                        style={{
+                          position: 'absolute',
+                          bottom: -4,
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: 30,
+                          height: 8,
+                          backgroundColor: baseColor,
+                          borderRadius: 4,
+                          cursor: 'ns-resize',
+                          pointerEvents: 'auto',
+                        }}
+                      />
+                      <div
+                        onMouseDown={(e) =>
+                          handleZoneMouseDown(e, actualIndex, 'left')
+                        }
+                        style={{
+                          position: 'absolute',
+                          left: -4,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 8,
+                          height: 30,
+                          backgroundColor: baseColor,
+                          borderRadius: 4,
+                          cursor: 'ew-resize',
+                          pointerEvents: 'auto',
+                        }}
+                      />
+                      <div
+                        onMouseDown={(e) =>
+                          handleZoneMouseDown(e, actualIndex, 'right')
+                        }
+                        style={{
+                          position: 'absolute',
+                          right: -4,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 8,
+                          height: 30,
+                          backgroundColor: baseColor,
+                          borderRadius: 4,
+                          cursor: 'ew-resize',
+                          pointerEvents: 'auto',
+                        }}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: 2,
+                          right: 2,
+                          backgroundColor: 'rgba(0,0,0,0.7)',
+                          color: 'white',
+                          padding: '1px 4px',
+                          borderRadius: 2,
+                          fontSize: 8,
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        {Math.round(effectiveWidth)}x
+                        {Math.round(effectiveHeight)} @ (
+                        {Math.round(effectiveLeft)}, {Math.round(effectiveTop)})
+                      </div>
+                    </>
+                  )}
                 </div>
+              );
+            })}
 
-                {isSelected && (
-                  <>
-                    <div onMouseDown={(e) => handleZoneMouseDown(e, actualIndex, 'top')} style={{ position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)', width: 30, height: 8, backgroundColor: baseColor, borderRadius: 4, cursor: 'ns-resize', pointerEvents: 'auto' }} />
-                    <div onMouseDown={(e) => handleZoneMouseDown(e, actualIndex, 'bottom')} style={{ position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)', width: 30, height: 8, backgroundColor: baseColor, borderRadius: 4, cursor: 'ns-resize', pointerEvents: 'auto' }} />
-                    <div onMouseDown={(e) => handleZoneMouseDown(e, actualIndex, 'left')} style={{ position: 'absolute', left: -4, top: '50%', transform: 'translateY(-50%)', width: 8, height: 30, backgroundColor: baseColor, borderRadius: 4, cursor: 'ew-resize', pointerEvents: 'auto' }} />
-                    <div onMouseDown={(e) => handleZoneMouseDown(e, actualIndex, 'right')} style={{ position: 'absolute', right: -4, top: '50%', transform: 'translateY(-50%)', width: 8, height: 30, backgroundColor: baseColor, borderRadius: 4, cursor: 'ew-resize', pointerEvents: 'auto' }} />
-                    <div style={{ position: 'absolute', bottom: 2, right: 2, backgroundColor: 'rgba(0,0,0,0.7)', color: 'white', padding: '1px 4px', borderRadius: 2, fontSize: 8, pointerEvents: 'none' }}>
-                      {Math.round(effectiveWidth)}x{Math.round(effectiveHeight)} @ ({Math.round(effectiveLeft)}, {Math.round(effectiveTop)})
-                    </div>
-                  </>
-                )}
-              </div>
-            )
-          })}
-
-          {/* ISI Zone handles (positioned outside ISI container) */}
-          {(config.clickZones || []).filter(z => z.inISI).map((zone, idx) => {
-            const actualIndex = (config.clickZones || []).indexOf(zone)
-            const isSelected = selectedZoneIndex === actualIndex
-            const baseColor = '#10b981'
-
-            return (
-              <div
-                key={zone.id + '-handle'}
-                onClick={(e) => { e.stopPropagation(); setSelectedZoneIndex(actualIndex); setIsiSelected(false); }}
-                style={{
-                  position: 'absolute',
-                  left: ((config.isiLeft || 0) + (config.isiWidth || config.dimensions.width)) * scale + 4,
-                  top: (config.isiTop + 4 + idx * 28) * scale,
-                  backgroundColor: isSelected ? baseColor : 'rgba(16, 185, 129, 0.8)',
-                  color: 'white',
-                  padding: '4px 8px',
-                  borderRadius: 4,
-                  fontSize: 10,
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                  whiteSpace: 'nowrap'
-                }}
-                title={`ISI Zone: ${zone.id} @ (${zone.left}, ${zone.top}) - Drag in preview`}
-              >
-                {zone.id} <span style={{ opacity: 0.7, fontSize: 8 }}>↓{zone.top}px</span>
-              </div>
-            )
-          })}
         </div>
       </BrowserPreview>
 
-      <p className="text-center text-xs text-gray-400">{config.dimensions.width} x {config.dimensions.height}px</p>
+      <p className="text-center text-xs text-gray-400">
+        {config.dimensions.width} x {config.dimensions.height}px
+      </p>
     </div>
-  )
+  );
 }
 
 export default PreviewIframe

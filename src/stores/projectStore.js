@@ -1,12 +1,20 @@
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+// Default button configuration
+const DEFAULT_BUTTONS = [
+  { text: 'Button 1', bgColor: '#2e8e95', textColor: '#ffffff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
+  { text: 'Button 2', bgColor: '#2e8e95', textColor: '#ffffff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
+  { text: 'Button 3',   bgColor: '#2e8e95', textColor: '#ffffff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
+  { text: 'Button 4',   bgColor: '#2e8e95', textColor: '#ffffff', borderRadius: 16, width: 984, height: 99.5, top: 0, left: 0, showVideoControls: true },
+];
 
 // Default ISI dimensions per brand/size
 const ISI_DEFAULTS = {
   cp: { isiWidth: 1080, isiHeight: 540, isiTop: 1193, isiLeft: 0 },
   mr: { isiWidth: 300, isiHeight: 100, isiTop: 150, isiLeft: 0 },
   int: { isiWidth: 1080, isiHeight: 540, isiTop: 1193, isiLeft: 0 },
-}
+};
 
 export const useProjectStore = create(
   persist(
@@ -102,17 +110,12 @@ export const useProjectStore = create(
         videoLeft: 65,
         videoWidth: 876,
         playBtnTop: 432,
-        playBtnLeft: 419,
-        playBtnWidth: 146,
+        playBtnLeft: 417,
+        playBtnWidth: 150,
         showVideoControls: true,
         // Button settings (for INT templates)
         buttonCount: 2,
-        buttons: [
-          { text: 'Learn More', bgColor: '#6cc04a', textColor: '#ffffff', borderColor: '#6cc04a', borderRadius: 4, width: 200, height: 50, top: 100, left: 50 },
-          { text: 'Contact Us', bgColor: '#0066cc', textColor: '#ffffff', borderColor: '#0066cc', borderRadius: 4, width: 200, height: 50, top: 100, left: 300 },
-          { text: 'Button 3', bgColor: '#333333', textColor: '#ffffff', borderColor: '#333333', borderRadius: 4, width: 200, height: 50, top: 160, left: 50 },
-          { text: 'Button 4', bgColor: '#333333', textColor: '#ffffff', borderColor: '#333333', borderRadius: 4, width: 200, height: 50, top: 160, left: 300 }
-        ],
+        buttons: DEFAULT_BUTTONS.map((button) => ({ ...button })),
         // Click Zones (for MR and CP templates)
         // linkType: 'url' | 'pdf' | 'mod'
         // jobId: string (for mod fallback URL)
@@ -120,7 +123,7 @@ export const useProjectStore = create(
           { id: 'clickTag1', url: 'https://education.patientpoint.com/failsafe-page/', linkType: 'url', jobId: '', top: 0, left: 0, width: 1080, height: 1193, inISI: false, pauseVideo: false }
         ],
         // Global job ID for mod fallback (used if zone doesn't specify one)
-        jobId: ''
+        jobId: '',
       },
 
       // ISI content (for text-to-image generation)
@@ -129,7 +132,7 @@ export const useProjectStore = create(
         text: '',
         fontFamily: 'Arial',
         fontSize: 14,
-        lineHeight: 1.4
+        lineHeight: 1.4,
       },
 
       // Animation timeline data
@@ -144,8 +147,8 @@ export const useProjectStore = create(
 
       // Actions
       setTemplate: (template) => {
-        const isiDefaults = ISI_DEFAULTS[template.brand] || ISI_DEFAULTS.cp
-        const hasISI = template.features?.includes('isi')
+        const isiDefaults = ISI_DEFAULTS[template.brand] || ISI_DEFAULTS.cp;
+        const hasISI = template.features?.includes('isi');
         set({
           currentTemplate: template,
           projectName: `${template.id}-${Date.now()}`,
@@ -154,7 +157,10 @@ export const useProjectStore = create(
             dimensions: template.dimensions,
             ...(hasISI ? isiDefaults : {}),
             // Reset click zones to match new dimensions
-            clickZones: [
+            // Video-only templates (no buttons) don't use click zones
+            clickZones: (template.features?.includes('video') && !template.features?.includes('buttons') && !template.features?.includes('background'))
+              ? []
+              : [
               {
                 id: 'clickTag1',
                 url: 'https://education.patientpoint.com/failsafe-page/',
@@ -162,15 +168,25 @@ export const useProjectStore = create(
                 jobId: '',
                 top: 0,
                 left: 0,
-                width: template.dimensions.width,
-                height: hasISI ? isiDefaults.isiTop : template.dimensions.height,
+                width: template.features?.includes('buttons') ? 200 : template.dimensions.width,
+                height: template.features?.includes('buttons') ? 50 : (hasISI ? isiDefaults.isiTop : template.dimensions.height),
                 inISI: false,
-                pauseVideo: false
+                pauseVideo: template.features?.includes('video') ? true : false
               }
             ],
-            jobId: ''
-          }
-        })
+            jobId: '',
+            // Reset buttons and video controls to defaults when switching templates
+            showVideoControls: true,
+            buttons: DEFAULT_BUTTONS.map((button) => ({ ...button })),
+            buttonCount: 0,
+            // Reset bg-video play button position to defaults
+            ...(template.features?.includes('background') && template.features?.includes('video') ? {
+              playBtnTop: 432,
+              playBtnLeft: 417,
+              playBtnWidth: 150,
+            } : {})
+          },
+        });
       },
 
       clearProject: () => set({
@@ -190,109 +206,125 @@ export const useProjectStore = create(
 
       setProjectName: (name) => set({ projectName: name }),
 
-      setAsset: (key, value) => set((state) => ({
-        assets: { ...state.assets, [key]: value },
-        isPreviewDirty: true
-      })),
+      setAsset: (key, value) =>
+        set((state) => ({
+          assets: { ...state.assets, [key]: value },
+          isPreviewDirty: true,
+        })),
 
-      addFrame: (frame) => set((state) => ({
-        assets: {
-          ...state.assets,
-          frames: [...state.assets.frames, frame]
-        },
-        isPreviewDirty: true
-      })),
+      addFrame: (frame) =>
+        set((state) => ({
+          assets: {
+            ...state.assets,
+            frames: [...state.assets.frames, frame],
+          },
+          isPreviewDirty: true,
+        })),
 
-      removeFrame: (index) => set((state) => ({
-        assets: {
-          ...state.assets,
-          frames: state.assets.frames.filter((_, i) => i !== index)
-        },
-        isPreviewDirty: true
-      })),
+      removeFrame: (index) =>
+        set((state) => ({
+          assets: {
+            ...state.assets,
+            frames: state.assets.frames.filter((_, i) => i !== index),
+          },
+          isPreviewDirty: true,
+        })),
 
-      updateConfig: (key, value) => set((state) => ({
-        config: { ...state.config, [key]: value },
-        isPreviewDirty: true
-      })),
+      updateConfig: (key, value) =>
+        set((state) => ({
+          config: { ...state.config, [key]: value },
+          isPreviewDirty: true,
+        })),
 
-      setIsiContent: (content) => set((state) => ({
-        isiContent: { ...state.isiContent, ...content },
-        isPreviewDirty: true
-      })),
+      setIsiContent: (content) =>
+        set((state) => ({
+          isiContent: { ...state.isiContent, ...content },
+          isPreviewDirty: true,
+        })),
 
       markPreviewClean: () => set({ isPreviewDirty: false }),
 
       // Animation actions
       setAnimations: (animations) => set({ animations, isPreviewDirty: true }),
 
-      addAnimation: (animation) => set((state) => ({
-        animations: [...state.animations, {
-          id: `anim-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          ...animation
-        }],
-        isPreviewDirty: true
-      })),
+      addAnimation: (animation) =>
+        set((state) => ({
+          animations: [
+            ...state.animations,
+            {
+              id: `anim-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              ...animation,
+            },
+          ],
+          isPreviewDirty: true,
+        })),
 
-      updateAnimation: (id, updates) => set((state) => ({
-        animations: state.animations.map(a => a.id === id ? { ...a, ...updates } : a),
-        isPreviewDirty: true
-      })),
+      updateAnimation: (id, updates) =>
+        set((state) => ({
+          animations: state.animations.map((a) =>
+            a.id === id ? { ...a, ...updates } : a,
+          ),
+          isPreviewDirty: true,
+        })),
 
-      removeAnimation: (id) => set((state) => ({
-        animations: state.animations.filter(a => a.id !== id),
-        isPreviewDirty: true
-      })),
+      removeAnimation: (id) =>
+        set((state) => ({
+          animations: state.animations.filter((a) => a.id !== id),
+          isPreviewDirty: true,
+        })),
 
-      reorderAnimations: (animations) => set({ animations, isPreviewDirty: true }),
+      reorderAnimations: (animations) =>
+        set({ animations, isPreviewDirty: true }),
 
-      triggerAnimationReplay: () => set((state) => ({
-        animationReplayCount: (state.animationReplayCount || 0) + 1
-      })),
+      triggerAnimationReplay: () =>
+        set((state) => ({
+          animationReplayCount: (state.animationReplayCount || 0) + 1,
+        })),
 
       // Generate default fade in/out animations for all current frames
-      generateDefaultAnimations: () => set((state) => {
-        const frameCount = state.assets.frames?.length || 0
-        if (frameCount === 0) return {}
+      generateDefaultAnimations: () =>
+        set((state) => {
+          const frameCount = state.assets.frames?.length || 0;
+          if (frameCount === 0) return {};
 
-        const duration = state.config.frameDuration || 0.5
-        const delay = state.config.frameDelay || 1
-        const animations = []
-        let timePosition = 0
+          const duration = state.config.frameDuration || 0.5;
+          const delay = state.config.frameDelay || 1;
+          const animations = [];
+          let timePosition = 0;
 
-        for (let i = 0; i < frameCount; i++) {
-          const target = `frame${i + 1}`
-          // Fade in
-          animations.push({
-            id: `anim-default-in-${i}`,
-            target,
-            type: 'in',
-            effects: { autoAlpha: { from: 0, to: 1 } },
-            duration,
-            startTime: timePosition,
-            easing: 'Power1.easeOut'
-          })
-          timePosition += duration + delay
-          // Fade out (skip for last frame)
-          if (i < frameCount - 1) {
+          for (let i = 0; i < frameCount; i++) {
+            const target = `frame${i + 1}`;
+            // Fade in
             animations.push({
-              id: `anim-default-out-${i}`,
+              id: `anim-default-in-${i}`,
               target,
-              type: 'out',
-              effects: { autoAlpha: { from: 1, to: 0 } },
+              type: 'in',
+              effects: { autoAlpha: { from: 0, to: 1 } },
               duration,
               startTime: timePosition,
-              easing: 'Power1.easeIn'
-            })
-            timePosition += duration
+              easing: 'Power1.easeOut',
+            });
+            timePosition += duration + delay;
+            // Fade out (skip for last frame)
+            if (i < frameCount - 1) {
+              animations.push({
+                id: `anim-default-out-${i}`,
+                target,
+                type: 'out',
+                effects: { autoAlpha: { from: 1, to: 0 } },
+                duration,
+                startTime: timePosition,
+                easing: 'Power1.easeIn',
+              });
+              timePosition += duration;
+            }
           }
-        }
-        return { animations, isPreviewDirty: true }
-      }),
+          return { animations, isPreviewDirty: true };
+        }),
 
       // Export project as JSON for save/load
       exportProject: () => {
-        const state = get()
+        const state = get();
         return {
           version: '1.0',
           projectName: state.projectName,
@@ -301,13 +333,13 @@ export const useProjectStore = create(
           isiContent: state.isiContent,
           animations: state.animations,
           // Note: assets are stored as data URLs
-          assets: state.assets
-        }
+          assets: state.assets,
+        };
       },
 
       importProject: (projectData) => {
         if (projectData.version !== '1.0') {
-          console.warn('Project version mismatch')
+          console.warn('Project version mismatch');
         }
         set({
           projectName: projectData.projectName,
@@ -407,8 +439,8 @@ export const useProjectStore = create(
         config: state.config,
         isiContent: state.isiContent,
         animations: state.animations,
-        assets: state.assets
-      })
-    }
-  )
-)
+        // Assets (data URLs) are excluded — they can be 50-100MB and blow the 5MB localStorage limit
+      }),
+    },
+  ),
+);
