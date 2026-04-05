@@ -169,10 +169,9 @@ export async function parseAdZip(zipFile, options) {
       }
     }
 
-    // Check for GWD (Google Web Designer) ads
-    // Focus keeps GWD elements — only IXR/iPro converts them
+    // Check for GWD (Google Web Designer) ads — convert for all platforms
     const gwdDetection = detectGWD(html)
-    if (gwdDetection.isGWD && platform !== 'focus') {
+    if (gwdDetection.isGWD) {
       result.isGWD = true
 
       result.fixes.push({
