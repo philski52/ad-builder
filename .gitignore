@@ -1,8 +1,8 @@
 # Dependencies
 node_modules/
 
-# Build output (committed for Railway deployment — npm is blocked)
-# dist/
+# Build output (Railway runs vite build via Dockerfile)
+dist/
 
 # Environment files
 .env
