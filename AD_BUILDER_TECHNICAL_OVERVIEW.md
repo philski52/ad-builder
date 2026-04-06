@@ -31,6 +31,7 @@ The Chrome 69 constraint dictates everything: **ES5 only** (no `const`, `let`, a
   "react": "^18.2.0",
   "zustand": "^4.4.7",
   "jszip": "^3.10.1",
+  "acorn": "^8.16.0",
   "vite": "^5.0.8",
   "tailwindcss": "^3.4.0"
 }
@@ -41,12 +42,15 @@ The Chrome 69 constraint dictates everything: **ES5 only** (no `const`, `let`, a
 - **React 18 + Vite** — Fast dev server, no heavy bundler config. Vite's ESM-native approach means near-instant HMR. We chose Vite over CRA because CRA is deprecated and Vite is significantly faster.
 - **Zustand** — Minimal state management (no Redux boilerplate). Two stores: `projectStore` for building new ads, `refactorStore` for the import/refactor workspace. Both use Zustand's `persist` middleware to survive page reloads via `localStorage`.
 - **JSZip** — Client-side ZIP reading/writing. Ads are uploaded as ZIPs, parsed entirely in the browser, and exported as ZIPs. No server needed.
+- **Acorn** — Lightweight JavaScript AST parser (~50KB, zero dependencies). Used for reliable ES6→ES5 conversion, GSAP 3→TweenMax syntax transformation, and click handler extraction. Replaced the fragile regex+brace-counting approach in the most complex parsing functions.
 - **Tailwind CSS** — Utility-first CSS. Fast to iterate on UI without writing custom CSS files. All styling is inline in JSX.
-- **No backend** — The entire app runs client-side. No server, no database, no auth. This was deliberate: the machine this runs on has npm blocked at the network level, so we needed something that could be developed and run entirely locally after initial setup.
+- **No backend** — The entire app runs client-side. No server, no database, no auth. This was deliberate — the app is deployed on Railway as a static site. No server-side runtime required.
+
+**npm Registry:** npm packages are installed via **JFrog Artifactory** (`outcomehealth.jfrog.io`), which acts as a corporate npm proxy. The `.npmrc` is configured with the Artifactory registry URL and an auth token.
 
 **What we intentionally did NOT use:**
-- No TypeScript — Faster iteration during rapid prototyping. The codebase is ~11,000 lines across 8 key files. Type safety would help at scale but wasn't worth the overhead for a single-developer internal tool.
-- No test framework — Validation is done via `node --check` syntax verification and manual testing against real ads. npm is blocked on the dev machine, so installing Jest/Vitest was not possible.
+- No TypeScript — Faster iteration during rapid prototyping. The codebase is ~12,000 lines across 9 key files. Type safety would help at scale but wasn't worth the overhead for a single-developer internal tool.
+- No test framework (yet) — Validation is done via `node --check` syntax verification and manual testing against real ads. Now that npm is available via JFrog, Vitest could be added for snapshot regression tests.
 - No router — Single-page with conditional rendering. The app has two modes (build vs. refactor) toggled by Zustand state, not URL routes.
 
 ---
@@ -75,7 +79,8 @@ app/
     templates/
       index.js                   — Template registry (18 templates across CP/INT/MR)
     utils/
-      adImporter.js              (6354 lines) — Core refactoring engine
+      adImporter.js              (6347 lines) — Core refactoring engine
+      astUtils.js                (461 lines) — Acorn AST parsing helpers (ES6 conversion, GSAP, clicks)
       templateGenerator.js       (905 lines) — HTML/JS/CSS code generation
       zipExporter.js             (146 lines) — JSZip packaging
   refactor_analyzer.py           (935 lines) — Python bulk analysis tool
@@ -138,7 +143,7 @@ Each fix runs conditionally based on detected flags:
 
 | Step | What It Does |
 |------|-------------|
-| GSAP 3 → TweenMax | Rewrites `gsap.timeline()` → `new TimelineMax({})`, `gsap.to()` → `TweenMax.to()`, etc. Uses brace-counting parser for nested objects like `scrollTo: {y: 100}` |
+| GSAP 3 → TweenMax | Rewrites `gsap.timeline()` → `new TimelineMax({})`, `gsap.to()` → `TweenMax.to()`, etc. Uses Acorn AST parsing for call expression arguments (nested objects like `scrollTo: {y: 100}` handled natively by the parser), with brace-counting regex fallback for malformed code |
 | CSS variable resolution | Parses `--custom-prop: value` declarations, replaces all `var(--custom-prop)` with literal values |
 | Google Fonts removal | Strips `<link>` tags referencing `fonts.googleapis.com` and `@font-face` blocks with CDN URLs |
 | Tracking pixel removal | Removes `<img>` tags with 1x1 dimensions or tracking domains |
@@ -247,11 +252,11 @@ Egnyte (READ-ONLY)
 
 ### 1. Client-Side Only (No Server)
 
-**Decision:** Everything runs in the browser. ZIP parsing, code transformation, AI context generation — all client-side JavaScript.
+**Decision:** Everything runs in the browser. ZIP parsing, code transformation, AI context generation — all client-side JavaScript. Deployed on Railway as a static site.
 
-**Why:** The dev machine has npm blocked at the network level. We can't install or run server-side tooling. The app was built by iterating with `node --check` for syntax verification and manual browser testing.
+**Why:** No server-side logic is needed. Each user uploads a ZIP, the browser processes it, and exports a ZIP. All computation is local to the browser session. Railway serves the static Vite build — no backend runtime.
 
-**Trade-off:** No server means no real build step, no automated tests, no CI/CD. All validation is manual. If the app needed to serve multiple users simultaneously, we'd need a backend.
+**Trade-off:** No server means no shared state, no project history across users, no centralized logging. Each user's browser is an independent instance. This is fine for a 4-person team where each person works on different ads.
 
 ### 2. Zustand Over Redux
 
@@ -269,13 +274,17 @@ Egnyte (READ-ONLY)
 
 **Trade-off:** The files are long (exportUtils is 1,761 lines, templateGenerator is 905 lines). Any formatting error in a string literal silently produces broken output. There's no compile-time validation of the generated code.
 
-### 4. Regex-Based Parsing (Not AST)
+### 4. AST-First Parsing with Regex Fallback
 
-**Decision:** `adImporter.js` parses HTML and JavaScript using regex patterns, not a proper AST parser (like Babel or Acorn).
+**Decision:** `adImporter.js` uses Acorn AST parsing for structural JavaScript transformations (ES6→ES5 conversion, GSAP 3→TweenMax, click handler extraction) and regex for simple string-presence detection (`detectFeatures()` flags).
 
-**Why:** We can't install npm packages. A regex approach works for the patterns we need to detect — we're looking for specific strings (`gsap.timeline()`, `Enabler.exit()`, `var clickTag`), not doing full semantic analysis. The brace-counting parser handles the one case where regex falls short (nested object arguments in GSAP calls).
+**Why:** The codebase originally used pure regex+brace-counting because npm was blocked. Once JFrog Artifactory access was configured, we added Acorn (~50KB, zero deps) and rewrote the three most fragile parsing systems to use AST. Regex remains for `detectFeatures()` because those checks are simple string-presence tests (e.g., "does this code contain `Enabler.js`?") where AST would be overkill.
 
-**Trade-off:** Regex parsing is fragile. Edge cases in agency code (string literals containing patterns, comments that look like code, minified code with no whitespace) can cause false positives or missed detections. An AST parser would be more reliable but requires npm.
+**Architecture:** `astUtils.js` (461 lines) provides the AST layer. Each transformation tries AST first and falls back to the original regex approach if Acorn can't parse the code (common with malformed/partial agency JS). This means:
+- Well-formed code gets correct AST-based transformation (no false positives from comments or strings)
+- Malformed code still gets a best-effort regex conversion instead of failing silently
+
+**Trade-off:** Two code paths to maintain (AST + regex fallback). The fallback path will gradually become less exercised as we validate more ads, but removing it entirely would risk regressions on edge-case agency code.
 
 ### 5. AI-Assisted Finish Instead of Full Automation
 
@@ -309,7 +318,7 @@ Data URLs for images are base64 strings (~33% larger than the binary). A 1MB ima
 
 **Mitigation:** Switch to IndexedDB for asset storage (keeps string config in localStorage, binary assets in IndexedDB). Or use the File System Access API for direct file I/O.
 
-### 3. No Automated Tests
+### 3. No Automated Tests (Yet)
 
 Every change to `adImporter.js` or `exportUtils.js` is validated by:
 1. `node --check` syntax verification
@@ -318,17 +327,16 @@ Every change to `adImporter.js` or `exportUtils.js` is validated by:
 
 This works for one developer iterating quickly, but would not scale to a team. A regression in auto-fix step #14 might not be caught until someone imports a specific ad that exercises that code path.
 
-**Mitigation:** If npm access is restored, add Vitest with snapshot tests — import a known ZIP, snapshot the `importResult`, and diff against expected output. The Python analyzer could also be adapted to run as a regression test suite.
+**Mitigation (now unblocked):** npm is available via JFrog Artifactory. Next step is adding Vitest with snapshot tests — import known ZIPs, snapshot the `importResult`, and diff against expected output. The Python analyzer's dataset could also be adapted into a regression test suite. Acorn's `parse()` can also validate generated JS syntax before export.
 
-### 4. Regex Fragility
+### 4. Regex Fragility in Detection
 
-Agency code is unpredictable. Current known edge cases:
+The AST integration resolved the most fragile parsing (GSAP conversion, ES6 arrows, template literals), but `detectFeatures()` still uses regex for its ~45 boolean flags. Known edge cases:
 - Minified code with no whitespace can cause regex patterns to match across statement boundaries
 - String literals containing code-like text (e.g., error messages mentioning "function") trigger false detections
 - Comments containing disabled code (`// gsap.timeline()`) are detected as if they were active
-- Multi-line template literals in GSAP 3 code can break the brace-counting parser if backticks are used
 
-**Mitigation:** An AST parser (Acorn is ~50KB, no dependencies) would eliminate most of these issues. Could be vendored into the project without npm.
+**Mitigation:** These are detection flags (boolean "does this pattern exist?"), not code transformations. False positives in detection are low-risk — they result in extra warnings in the CLAUDE.md, not broken auto-fixes. The high-risk code transformations (GSAP, ES6, click extraction) now use AST where possible.
 
 ### 5. Single-User Assumption
 
@@ -340,7 +348,7 @@ The app assumes one user on one machine. There's no concept of projects saved to
 
 Generated code is never executed or syntax-checked before export. If `templateGenerator.js` produces invalid JavaScript (e.g., unclosed brace, typo in a TweenMax property), the user won't know until they open the exported ad in a browser.
 
-**Mitigation:** Run the generated JS through `new Function(code)` as a syntax check before export. Or use Acorn's `parse()` for validation without execution.
+**Mitigation (now possible):** Acorn is installed and could be used to validate generated JS syntax before export via `tryParse()`. This would catch syntax errors at export time rather than in the browser. Not yet implemented but straightforward to add.
 
 ### 7. Platform Proliferation
 
@@ -375,14 +383,14 @@ A: The app has two modes (build and refactor) with no deep-linking requirement. 
 
 ### The Refactoring Pipeline
 
-**Q: How reliable is the regex-based parsing?**
-A: Reliable enough for the ~45 patterns we detect, which cover every pattern found across 54 IXR ads and 25 iPro ads. The brace-counting parser handles the one complex case (nested GSAP objects). Known limitation: minified code and code inside string literals can cause false positives, but these are flagged rather than silently auto-fixed.
+**Q: How reliable is the parsing?**
+A: The three highest-risk transformations (GSAP 3 conversion, ES6→ES5, click extraction) now use Acorn AST parsing, which handles nested objects, arrow function scoping, and template literals correctly. The ~45 detection flags still use regex, but those are boolean presence checks where false positives are low-risk (they add extra warnings, not broken code). The AST layer falls back to the original regex approach if Acorn can't parse malformed agency code, so nothing silently breaks.
 
 **Q: What happens when you encounter a completely new agency framework?**
 A: Detection flags it as unknown, auto-fix skips it, and the CLAUDE.md lists it as a manual task. The AI agent receives enough device-spec context to figure out the conversion. This is the strength of the AI-assisted approach — it degrades gracefully on unknown patterns.
 
 **Q: How do you validate that the auto-fixes don't break the ad?**
-A: Manual testing. We import a real ad ZIP, inspect the auto-fix output in the refactor workspace editor, then export and open in a browser. The Python analyzer provides before/after comparison data to verify fixes match what human developers did historically. There are no automated tests due to the npm restriction.
+A: Manual testing. We import a real ad ZIP, inspect the auto-fix output in the refactor workspace editor, then export and open in a browser. The Python analyzer provides before/after comparison data to verify fixes match what human developers did historically. npm access is now available via JFrog Artifactory, so automated snapshot tests (Vitest) are the planned next step.
 
 **Q: What's the GSAP 3 converter doing exactly?**
 A: Rewrites modern GSAP 3 syntax to TweenMax 2.0.1 syntax:
@@ -390,7 +398,7 @@ A: Rewrites modern GSAP 3 syntax to TweenMax 2.0.1 syntax:
 - `gsap.to()` → `TweenMax.to()`
 - `gsap.set()` → `TweenMax.set()`
 - `duration` property inside tween objects → third positional argument
-- Handles nested objects like `scrollTo: {y: 100}` using a brace-counting parser (not regex) because regex can't track brace depth
+- Uses Acorn AST to parse call expression arguments, so nested objects like `scrollTo: {y: 100}` are handled natively by the parser. Falls back to the original brace-counting approach for code Acorn can't parse.
 
 **Q: Why generate a CLAUDE.md instead of just auto-fixing everything?**
 A: The long tail is too long. CreateJS ads need complete canvas-to-DOM rebuilds. Webpack bundles can't be auto-unpacked. Complex animation timelines with labels, callbacks, and conditional logic need semantic understanding. Auto-fixing the easy ~60% and giving AI the context for the remaining ~40% produces better results than trying to automate 100%.
@@ -409,13 +417,13 @@ A: Several things that became pipeline features: JS-injected ISI (`ISIText.js` p
 ### Operations & Deployment
 
 **Q: How is this deployed?**
-A: It's not deployed to a server. It runs locally via `vite dev` on the developer's machine. If deployment were needed, `vite build` produces a static bundle that could be served from any web server or S3 bucket — no server-side runtime required.
+A: Deployed on **Railway** as a static site. `vite build` produces a static bundle served by Railway — no server-side runtime required. Multiple users access it via the Railway URL, each with their own independent browser session.
 
 **Q: What happens if localStorage gets corrupted?**
 A: The app starts fresh. There's no migration or recovery mechanism. Since the app is a tool (not a database), losing localStorage means losing in-progress work but not any source of truth — the original ad ZIPs and Egnyte archive are the sources of truth.
 
 **Q: Can multiple people use this simultaneously?**
-A: Yes, but independently. Each person runs their own local instance. There's no shared state, no server, no conflicts. If centralized use were needed, the Zustand stores would need to be backed by a database instead of localStorage.
+A: Yes. The app is deployed on Railway and supports multiple concurrent users. Each person's browser has independent localStorage — no shared state, no conflicts. Currently used by a team of 4.
 
 ---
 
@@ -423,11 +431,12 @@ A: Yes, but independently. Each person runs their own local instance. There's no
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `adImporter.js` | 6,354 | Core refactoring engine — ZIP parsing, 45 detections, 23 auto-fixes |
+| `adImporter.js` | 6,347 | Core refactoring engine — ZIP parsing, 45 detections, 23 auto-fixes |
 | `exportUtils.js` | 1,761 | CLAUDE.md AI context file generation, platform-gated device specs |
 | `refactor_analyzer.py` | 935 | Python bulk analysis of Egnyte ad archive |
 | `templateGenerator.js` | 905 | HTML/JS/CSS code generation for new ads |
 | `ImportAdButton.jsx` | 531 | Platform picker, drag-and-drop, ZIP/folder upload |
+| `astUtils.js` | 461 | Acorn AST parsing helpers — ES6 conversion, GSAP, click extraction |
 | `projectStore.js` | 414 | Zustand store for build-new-ad workflow |
 | `refactorStore.js` | 388 | Zustand store for import/refactor workspace |
 | `zipExporter.js` | 146 | JSZip packaging for export |
