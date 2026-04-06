@@ -3,6 +3,14 @@
 // Philosophy: REFACTOR, don't rebuild. Preserve original structure, fix compatibility issues.
 
 import JSZip from 'jszip'
+import {
+  tryParse, walk, nodeSource,
+  findArrowFunctions, arrowToFunction,
+  findTemplateLiterals, templateLiteralToConcat,
+  findIncludesCalls,
+  findCallExpressions, parseGsapCallArgs, parseGsapFromToArgs, buildTweenMaxCall,
+  extractClickTagVars, findAppHostCalls, findWindowOpenCalls,
+} from './astUtils.js'
 import { templates, getTemplateById } from '../templates'
 import { generateScrollerJS } from './templateGenerator'
 
@@ -4757,65 +4765,25 @@ function convertES6ToES5(js) {
     result = result.replace(/\blet\s+/g, 'var ')
   }
 
-  // Identify lines with chained arrow assignments: x = () => y = () => z
-  // These specific lines should be preserved, but other arrows can still be converted
-  var chainedArrowPattern = /=>\s*[^{;\n]*\w+\s*=\s*[^=].*=>/
-  var hasChainedArrows = chainedArrowPattern.test(result)
-  var chainedLineMarkers = []
-
-  if (hasChainedArrows) {
-    // Split into lines, mark chained arrow lines with placeholders
-    var lines = result.split('\n')
-    var markerIndex = 0
-
-    // Check multi-line chained arrows (accumulate lines until we have a complete statement)
-    var accumulatedLines = []
-    var lineStartIndices = []
-
-    for (var i = 0; i < lines.length; i++) {
-      accumulatedLines.push(lines[i])
-      lineStartIndices.push(i - accumulatedLines.length + 1)
-      var combined = accumulatedLines.join('\n')
-
-      // Check if this accumulated block has chained arrows
-      if (chainedArrowPattern.test(combined)) {
-        // Check if we have a complete statement (ends with function call or semicolon-ish)
-        var trimmed = combined.trim()
-        var isComplete = /\)\s*$/.test(trimmed) || /;\s*$/.test(trimmed) ||
-                        (trimmed.split('=>').length > 2 && /\w+\s*\([^)]*\)\s*$/.test(trimmed))
-
-        if (isComplete) {
-          // Replace these lines with a marker
-          var marker = '___CHAINED_ARROW_' + markerIndex + '___'
-          chainedLineMarkers.push({ marker: marker, content: combined })
-          markerIndex++
-
-          // Replace lines in the array
-          var startIdx = lineStartIndices[0]
-          lines[startIdx] = marker
-          for (var j = startIdx + 1; j <= i; j++) {
-            lines[j] = ''
-          }
-          accumulatedLines = []
-          lineStartIndices = []
-        }
-      } else if (!/=>\s*$/.test(lines[i]) && !/\.onload\s*=\s*$/.test(lines[i])) {
-        // Line doesn't look like it continues, reset accumulator
-        accumulatedLines = []
-        lineStartIndices = []
+  // Try AST-based arrow function conversion first
+  var astConverted = false
+  if (/=>/.test(result)) {
+    var arrows = findArrowFunctions(result)
+    if (arrows.length > 0) {
+      // arrows are sorted deepest-first, so we can replace from end to start safely
+      for (var ai = 0; ai < arrows.length; ai++) {
+        var arrow = arrows[ai]
+        var replacement = arrowToFunction(result, arrow)
+        result = result.substring(0, arrow.start) + replacement + result.substring(arrow.end)
       }
+      changes.push('arrow functions → regular functions (AST, ' + arrows.length + ' converted)')
+      astConverted = true
     }
-
-    result = lines.filter(function(line) { return line !== '' }).join('\n')
-    changes.push('chained arrows: preserved (manual conversion needed)')
   }
 
-  // Now convert remaining arrow functions (non-chained)
-    // Convert arrow functions using multiple passes for nested arrows
-    // First pass: convert expression arrows (no braces) - these are simple
-    // Second pass: convert block arrows from innermost to outermost
-
-    var maxPasses = 10 // Safety limit
+  // Fallback: if AST couldn't parse (malformed code) but arrows remain, use regex
+  if (!astConverted && /=>/.test(result)) {
+    var maxPasses = 10
     var passCount = 0
     var madeChanges = true
 
@@ -4823,27 +4791,19 @@ function convertES6ToES5(js) {
       madeChanges = false
       passCount++
 
-      // Pattern: (args) => simple_expression (no braces, no nested arrows)
-      // This handles: x => x + 1, (a, b) => a + b, () => doSomething()
+      // Expression arrows: (args) => expr
       var arrowExprPattern = /(\([\w\s,=]*\)|\w+)\s*=>\s*([^{},;\n][^,;\n]*)/g
       var exprResult = result.replace(arrowExprPattern, function(match, args, body) {
-        // Skip if body contains => (would be handled in later pass)
-        if (/=>/.test(body)) {
-          return match
-        }
-        // Skip if this looks like it's inside a larger structure
+        if (/=>/.test(body)) return match
         var trimmedBody = body.trim()
-        if (!trimmedBody || trimmedBody.startsWith('{')) {
-          return match
-        }
+        if (!trimmedBody || trimmedBody.startsWith('{')) return match
         var cleanArgs = args.replace(/[()]/g, '').trim()
         madeChanges = true
         return 'function(' + cleanArgs + ') { return ' + trimmedBody + '; }'
       })
       result = exprResult
 
-      // Pattern: (args) => { body } - arrow with block body
-      // Use a function to find matching braces properly
+      // Block arrows: (args) => { body }
       var arrowBlockMatch = result.match(/(\([\w\s,=]*\)|\w+)\s*=>\s*\{/)
       if (arrowBlockMatch) {
         var matchIndex = result.indexOf(arrowBlockMatch[0])
@@ -4851,66 +4811,73 @@ function convertES6ToES5(js) {
         var braceStart = result.indexOf('{', arrowIndex)
 
         if (braceStart !== -1) {
-          // Find matching closing brace
           var braceCount = 1
           var braceEnd = braceStart + 1
           while (braceCount > 0 && braceEnd < result.length) {
-            var char = result[braceEnd]
-            if (char === '{') braceCount++
-            else if (char === '}') braceCount--
+            if (result[braceEnd] === '{') braceCount++
+            else if (result[braceEnd] === '}') braceCount--
             braceEnd++
           }
-
           if (braceCount === 0) {
-            // Found matching brace - extract and convert
             var args = arrowBlockMatch[1]
             var body = result.substring(braceStart, braceEnd)
-            var fullMatch = result.substring(matchIndex, braceEnd)
-
             var cleanArgs = args.replace(/[()]/g, '').trim()
-            var replacement = 'function(' + cleanArgs + ') ' + body
-
-            result = result.substring(0, matchIndex) + replacement + result.substring(braceEnd)
+            result = result.substring(0, matchIndex) + 'function(' + cleanArgs + ') ' + body + result.substring(braceEnd)
             madeChanges = true
           }
         }
       }
     }
-
-  if (passCount > 1) {
-    changes.push('arrow functions → regular functions (' + passCount + ' passes for nested arrows)')
-  } else if (passCount === 1 && madeChanges) {
-    changes.push('arrow functions → regular functions')
+    if (passCount > 0 && madeChanges) {
+      changes.push('arrow functions → regular functions (regex fallback)')
+    }
   }
 
-  // Restore chained arrow markers with original content
-  if (chainedLineMarkers && chainedLineMarkers.length > 0) {
-    chainedLineMarkers.forEach(function(item) {
-      result = result.replace(item.marker, item.content)
-    })
+  // Convert .includes() — try AST first, fall back to regex
+  var includesConverted = false
+  if (/\.includes\s*\(/.test(result)) {
+    var includesCalls = findIncludesCalls(result)
+    if (includesCalls.length > 0) {
+      for (var ii = 0; ii < includesCalls.length; ii++) {
+        var inc = includesCalls[ii]
+        var objSrc = nodeSource(result, inc.object)
+        var argSrc = nodeSource(result, inc.argument)
+        var repl = objSrc + '.indexOf(' + argSrc + ') !== -1'
+        result = result.substring(0, inc.start) + repl + result.substring(inc.end)
+      }
+      changes.push('.includes() → .indexOf() !== -1 (AST)')
+      includesConverted = true
+    }
   }
-
-  // Convert .includes() to .indexOf() !== -1 (ES6 String/Array method not in Chrome 69)
-  var includesPattern = /(\w+(?:\.\w+)*)\.includes\s*\(([^)]+)\)/g
-  if (includesPattern.test(result)) {
-    changes.push('.includes() → .indexOf() !== -1')
-    includesPattern = /(\w+(?:\.\w+)*)\.includes\s*\(([^)]+)\)/g
+  if (!includesConverted && /\.includes\s*\(/.test(result)) {
+    var includesPattern = /(\w+(?:\.\w+)*)\.includes\s*\(([^)]+)\)/g
     result = result.replace(includesPattern, function(match, obj, arg) {
       return obj + '.indexOf(' + arg + ') !== -1'
     })
+    changes.push('.includes() → .indexOf() !== -1')
   }
 
-  // Convert template literals to string concatenation (simple cases)
-  var templatePattern = /`([^`]*)`/g
-  if (templatePattern.test(result)) {
-    changes.push('template literals → string concatenation')
-    // Reset regex
-    templatePattern = /`([^`]*)`/g
+  // Convert template literals — try AST first, fall back to regex
+  var templatesConverted = false
+  if (/`/.test(result)) {
+    var templates = findTemplateLiterals(result)
+    if (templates.length > 0) {
+      for (var ti = 0; ti < templates.length; ti++) {
+        var tmpl = templates[ti]
+        var concat = templateLiteralToConcat(result, tmpl)
+        result = result.substring(0, tmpl.start) + concat + result.substring(tmpl.end)
+      }
+      changes.push('template literals → string concatenation (AST)')
+      templatesConverted = true
+    }
+  }
+  if (!templatesConverted && /`[^`]*`/.test(result)) {
+    var templatePattern = /`([^`]*)`/g
     result = result.replace(templatePattern, function(match, content) {
-      // Convert ${expr} to " + expr + "
       var converted = content.replace(/\$\{([^}]+)\}/g, '" + $1 + "')
       return '"' + converted + '"'
     })
+    changes.push('template literals → string concatenation')
   }
 
   return { js: result, changed: changes.length > 0, changes: changes }
@@ -5397,32 +5364,58 @@ function convertGsap3ToTweenMax(js) {
     changes.push('gsap.delayedCall() → TweenMax.delayedCall()')
   }
 
-  // Convert gsap.to/from/fromTo calls using brace-counting to handle nested objects
-  // Handles: gsap.to(sel, {scrollTo: {y: 100}, duration: 1, onComplete: fn})
+  // Convert gsap.to/from/fromTo calls — try AST first, fall back to brace-counting
   var gsapCallMethods = ['to', 'from', 'fromTo']
+  var astGsapConverted = false
+
+  // AST approach: parse once, find all gsap.to/from/fromTo calls, convert from end to start
   for (var mi = 0; mi < gsapCallMethods.length; mi++) {
     var method = gsapCallMethods[mi]
-    var methodPattern = new RegExp('gsap\\s*\\.\\s*' + method + '\\s*\\(', 'gi')
+    if (!new RegExp('gsap\\s*\\.\\s*' + method, 'i').test(result)) continue
+
+    var astCalls = findCallExpressions(result, 'gsap.' + method)
+    if (astCalls.length > 0) {
+      // Process from end to start so indices don't shift
+      astCalls.sort(function(a, b) { return b.start - a.start })
+      for (var aci = 0; aci < astCalls.length; aci++) {
+        var call = astCalls[aci]
+        var parsed = method === 'fromTo'
+          ? parseGsapFromToArgs(result, call)
+          : parseGsapCallArgs(result, call)
+        var converted = buildTweenMaxCall(standalonePrefix, method, parsed)
+        if (converted !== null) {
+          result = result.substring(0, call.start) + converted + result.substring(call.end)
+          astGsapConverted = true
+        }
+      }
+      changes.push('gsap.' + method + '() → ' + standalonePrefix + '.' + method + '() (AST)')
+    }
+  }
+
+  // Fallback: brace-counting for any remaining gsap calls AST couldn't parse
+  for (var mi2 = 0; mi2 < gsapCallMethods.length; mi2++) {
+    var method2 = gsapCallMethods[mi2]
+    if (!new RegExp('gsap\\s*\\.\\s*' + method2 + '\\s*\\(', 'i').test(result)) continue
+
+    var methodPattern = new RegExp('gsap\\s*\\.\\s*' + method2 + '\\s*\\(', 'gi')
     var methodMatch
-    // Process from end to start so indices don't shift
     var methodMatches = []
     while ((methodMatch = methodPattern.exec(result)) !== null) {
       methodMatches.push({ index: methodMatch.index, matchLen: methodMatch[0].length })
     }
     for (var mmi = methodMatches.length - 1; mmi >= 0; mmi--) {
       var mInfo = methodMatches[mmi]
-      var afterOpen = mInfo.index + mInfo.matchLen // position right after the '('
-      // Find the matching closing ')' using brace/paren counting
+      var afterOpen = mInfo.index + mInfo.matchLen
       var fullCallEnd = findMatchingClose(result, afterOpen - 1, '(', ')')
       if (fullCallEnd === -1) continue
       var argsStr = result.substring(afterOpen, fullCallEnd)
-      var converted = convertGsapFullCall(method, argsStr, standalonePrefix)
-      if (converted !== null) {
-        result = result.substring(0, mInfo.index) + converted + result.substring(fullCallEnd + 1)
+      var converted2 = convertGsapFullCall(method2, argsStr, standalonePrefix)
+      if (converted2 !== null) {
+        result = result.substring(0, mInfo.index) + converted2 + result.substring(fullCallEnd + 1)
       }
     }
-    if (new RegExp('gsap\\s*\\.\\s*' + method, 'i').test(js)) {
-      changes.push('gsap.' + method + '() → ' + standalonePrefix + '.' + method + '()')
+    if (!astGsapConverted) {
+      changes.push('gsap.' + method2 + '() → ' + standalonePrefix + '.' + method2 + '() (regex fallback)')
     }
   }
 
